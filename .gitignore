@@ -1,0 +1,36 @@
+# .gitignore content for Python projects
+
+# Byte-code files
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# IDE and editor files
+.vscode/
+.idea/
+
+# Operating System files
+.DS_Store # macOS
+Thumbs.db # Windows
+
+# pip install/packaging files
+*.egg-info/
+dist/
+build/
+
+# The 'data' directory itself should be ignored, as it contains downloaded data.
+# If you later create other 'data' sub-directories that you *do* want to track
+# (e.g., small config files), you'll need to be more specific.
+# For now, this is a safe default.
+data/
+
+# Jupyter Notebook files (if you use them)
+.ipynb_checkpoints
+
+# Logs
+*.log
