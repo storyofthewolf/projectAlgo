@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # get_historical_data  :: Downloads historical stock data for a given ticker, period, interval 
 # save_data_to_csv     :: Saves historical data to CSV file 
 # load_data_from_csv   :: Loads saved data from CSV files
-
+# _generate_filename   :: generates historical data file name with interval and timefram
 
 def get_historical_data(ticker: str, start_date: str = None, end_date: str = None, period: str = None, interval: str = '1d') -> pd.DataFrame:
     """

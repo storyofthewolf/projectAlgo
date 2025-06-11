@@ -20,11 +20,10 @@ an algorithmic trading suite in python by storyofthewolf
 ## About The Project
 
 
-This project provides a pyhton framework for collecting, managing, and visualizing historical financial data, serving as the foundation for algorithmic trading strategy development and backtesting to come later.  While other resources exist, I find that one cannot really learn something unless you do it yourself.  So here we go.*
+This project provides a python framework for collecting, managing, and visualizing historical financial data, serving as the foundation for algorithmic trading strategy development and backtesting to come later.  While other resources exist, I find that one cannot really learn something unless you do it yourself.  So here we go.*
 
 ### Key Features:
-- Feature 1: Brief explanation.
-- Feature 2: Brief explanation.
+- 1: collecting market data from yahoo finance.
 - ...
 
 ---

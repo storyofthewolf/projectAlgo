@@ -1,5 +1,0 @@
-pip install yfinance  // contains api for access yahoo finance data
-perhaps also try alpaca
-
-
-python -m data_manager.get_data -t AAPL MSFT -i 1wk
