@@ -68,10 +68,19 @@ How to use your scripts. Provide clear examples.
 
 Download historical stock data:
 
-
+```bash
 # Navigate to the project root (e.g., /Users/wolfe/Desktop/myprojects/algo)
 python -m data_manager.get_data --tickers AAPL MSFT --interval 1d --start 2023-01-01 --end 2024-12-31 --output_dir data/historical_data
+```
+
 
 #### 2. Plotting (`visualize.py`)
-# Produce simple visualizations using mplfinance
+
+Produce simple visualizations using mplfinance
+
+```bash
 python -m visualization.visualize -t AAPL -s 2024-01-01 -e 2024-06-11 -i 1d --show-indicators sma rsi
+```
+
+## Development Issues
+1. Downloading data for short timeframes and intervals does not source correctly.  
