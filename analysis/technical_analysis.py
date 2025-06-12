@@ -1,68 +1,59 @@
-# algo/core/technical_indicators.py
+# projectAlgo/analysis/technical_analysis.py
 
 import pandas as pd
-import pandas_ta as ta # Excellent library for technical indicators (you'd need to pip install pandas_ta)
 
-def calculate_sma(df: pd.DataFrame, window: int) -> pd.DataFrame:
+def calculate_sma(df, column='Close', window=20):
     """
-    Calculates Simple Moving Average (SMA) and adds it as a new column.
-    Requires a 'Close' column in the DataFrame.
+    Calculates the Simple Moving Average (SMA) for a given DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        column (str): The column name to calculate SMA on.
+        window (int): The window period for the SMA.
+
+    Returns:
+        pd.Series: A Series containing the SMA values.
     """
-    if 'Close' not in df.columns:
-        raise ValueError("DataFrame must contain a 'Close' column to calculate SMA.")
+    if column not in df.columns:
+        raise ValueError(f"Column '{column}' not found in DataFrame.")
     
-    # Use pandas .rolling().mean()
-    df[f'SMA{window}'] = df['Close'].rolling(window=window).mean()
-    return df
+    # Ensure the column is numeric for calculation
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        raise TypeError(f"Column '{column}' is not numeric and cannot be used for SMA calculation.")
 
-def calculate_rsi(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
-    """
-    Calculates Relative Strength Index (RSI) and adds it as a new column.
-    Requires 'Close' column.
-    """
-    if 'Close' not in df.columns:
-        raise ValueError("DataFrame must contain a 'Close' column to calculate RSI.")
+    sma_series = df[column].rolling(window=window).mean()
+    sma_series.name = f'SMA{window}' # Name the series for easier joining
+    return sma_series
 
-    # A simple implementation for RSI (or use pandas_ta for more robust options)
-    # This is a common way to calculate RSI, but pandas_ta is more robust for edge cases.
-    delta = df['Close'].diff()
+def calculate_rsi(df, column='Close', window=14):
+    """
+    Calculates the Relative Strength Index (RSI) for a given DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        column (str): The column name to calculate RSI on.
+        window (int): The window period for the RSI.
+
+    Returns:
+        pd.Series: A Series containing the RSI values.
+    """
+    if column not in df.columns:
+        raise ValueError(f"Column '{column}' not found in DataFrame.")
+    
+    # Ensure the column is numeric for calculation
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        raise TypeError(f"Column '{column}' is not numeric and cannot be used for RSI calculation.")
+
+    delta = df[column].diff(1)
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
 
-    avg_gain = gain.ewm(com=window - 1, adjust=False).mean()
-    avg_loss = loss.ewm(com=window - 1, adjust=False).mean()
+    avg_gain = gain.ewm(com=window - 1, min_periods=window).mean()
+    avg_loss = loss.ewm(com=window - 1, min_periods=window).mean()
 
     rs = avg_gain / avg_loss
-    df[f'RSI{window}'] = 100 - (100 / (1 + rs))
+    rsi_series = 100 - (100 / (1 + rs))
+    rsi_series.name = f'RSI{window}'
+    return rsi_series
 
-    # Or, even simpler, if you install pandas_ta:
-    # df.ta.rsi(close=df['Close'], length=window, append=True) # This modifies df in place
-
-    return df
-
-def calculate_macd(df: pd.DataFrame, fast_window: int = 12, slow_window: int = 26, signal_window: int = 9) -> pd.DataFrame:
-    """
-    Calculates Moving Average Convergence Divergence (MACD).
-    Requires 'Close' column.
-    """
-    if 'Close' not in df.columns:
-        raise ValueError("DataFrame must contain a 'Close' column to calculate MACD.")
-
-    # Using pandas_ta for robust MACD calculation
-    # df.ta.macd(close=df['Close'], fast=fast_window, slow=slow_window, signal=signal_window, append=True)
-    # The above would add 'MACD_12_26_9', 'MACDH_12_26_9', 'MACDS_12_26_9' columns
-
-    # Manual calculation (simplified):
-    exp1 = df['Close'].ewm(span=fast_window, adjust=False).mean()
-    exp2 = df['Close'].ewm(span=slow_window, adjust=False).mean()
-    macd = exp1 - exp2
-    signal = macd.ewm(span=signal_window, adjust=False).mean()
-    
-    df['MACD'] = macd
-    df['MACD_Signal'] = signal
-    df['MACD_Hist'] = macd - signal # Histogram
-
-    return df
-
-
-# You'd add many more indicator functions here, e.g., calculate_bollinger_bands, calculate_stochastic_oscillator, etc.
+# Add other indicator functions here as you develop them
