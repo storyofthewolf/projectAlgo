@@ -1,6 +1,9 @@
 # projectAlgo
 
+![Project Logo](assets/ExoCAM_LOGO.png "projectAlgo Logo")
+
 an algorithmic trading suite in python by storyofthewolf
+
 feels the vibes!
 
 ## Table of Contents
@@ -25,7 +28,7 @@ This project provides a python framework for collecting, managing, and visualizi
 
 ### Key Features:
 - 1: collecting market data from yahoo finance.
-- ...
+- 2: make static plots of market data with technical indicators using mplfinance
 
 ---
 
