@@ -2,9 +2,9 @@
 
 import pandas as pd
 
-def calculate_sma(df, column='Close', window=20):
+def calculate_sma(df: pd.DataFrame, column: str = 'Close', window: int = 20) -> pd.DataFrame:
     """
-    Calculates the Simple Moving Average (SMA) for a given DataFrame.
+    Calculates the Simple Moving Average (SMA) for a given column in a DataFrame.
 
     Args:
         df (pd.DataFrame): The input DataFrame.
@@ -12,22 +12,30 @@ def calculate_sma(df, column='Close', window=20):
         window (int): The window period for the SMA.
 
     Returns:
-        pd.Series: A Series containing the SMA values.
+        pd.DataFrame: The DataFrame with the new SMA column added.
     """
-    if column not in df.columns:
+    # Always work on a copy to prevent modifying the original DataFrame passed in,
+    # and to avoid potential SettingWithCopyWarning.
+    df_copy = df.copy()
+
+    if column not in df_copy.columns:
         raise ValueError(f"Column '{column}' not found in DataFrame.")
     
-    # Ensure the column is numeric for calculation
-    if not pd.api.types.is_numeric_dtype(df[column]):
+    if not pd.api.types.is_numeric_dtype(df_copy[column]):
         raise TypeError(f"Column '{column}' is not numeric and cannot be used for SMA calculation.")
 
-    sma_series = df[column].rolling(window=window).mean()
-    sma_series.name = f'SMA{window}' # Name the series for easier joining
-    return sma_series
+    new_col_name = f'SMA_{window}'
+    
+    # Calculate the SMA and add it as a new column to the DataFrame copy
+    df_copy[new_col_name] = df_copy[column].rolling(window=window).mean()
 
-def calculate_rsi(df, column='Close', window=14):
+    # --- CRUCIAL: Return the modified DataFrame, not just the Series ---
+    return df_copy
+
+
+def calculate_rsi(df: pd.DataFrame, column: str = 'Close', window: int = 14) -> pd.DataFrame:
     """
-    Calculates the Relative Strength Index (RSI) for a given DataFrame.
+    Calculates the Relative Strength Index (RSI) for a given column in a DataFrame.
 
     Args:
         df (pd.DataFrame): The input DataFrame.
@@ -35,16 +43,18 @@ def calculate_rsi(df, column='Close', window=14):
         window (int): The window period for the RSI.
 
     Returns:
-        pd.Series: A Series containing the RSI values.
+        pd.DataFrame: The DataFrame with the new RSI column added.
     """
-    if column not in df.columns:
+    # Always work on a copy
+    df_copy = df.copy()
+
+    if column not in df_copy.columns:
         raise ValueError(f"Column '{column}' not found in DataFrame.")
     
-    # Ensure the column is numeric for calculation
-    if not pd.api.types.is_numeric_dtype(df[column]):
+    if not pd.api.types.is_numeric_dtype(df_copy[column]):
         raise TypeError(f"Column '{column}' is not numeric and cannot be used for RSI calculation.")
 
-    delta = df[column].diff(1)
+    delta = df_copy[column].diff(1)
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
 
@@ -52,8 +62,11 @@ def calculate_rsi(df, column='Close', window=14):
     avg_loss = loss.ewm(com=window - 1, min_periods=window).mean()
 
     rs = avg_gain / avg_loss
-    rsi_series = 100 - (100 / (1 + rs))
-    rsi_series.name = f'RSI{window}'
-    return rsi_series
+    
+    new_col_name = f'RSI_{window}'
+    df_copy[new_col_name] = 100 - (100 / (1 + rs))
+
+    # --- CRUCIAL: Return the modified DataFrame, not just the Series ---
+    return df_copy
 
 # Add other indicator functions here as you develop them
