@@ -1,6 +1,6 @@
 # projectAlgo
 
-<img src="assets/logo.png" alt="Project Logo" width="200" title="projectAlgo Logo"
+<img src="assets/logo.png" alt="Project Logo" width="200" title="projectAlgo Logo">
 
 an algorithmic trading suite in python by storyofthewolf
 
