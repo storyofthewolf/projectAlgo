@@ -1,6 +1,7 @@
 # projectAlgo
 
 an algorithmic trading suite in python by storyofthewolf
+feels the vibes!
 
 ## Table of Contents
 
@@ -79,7 +80,7 @@ python -m data_manager.get_data --tickers AAPL MSFT --interval 1d --start 2023-0
 Produce simple visualizations using mplfinance
 
 ```bash
-python -m visualization.visualize -t AAPL -s 2024-01-01 -e 2024-06-11 -i 1d --show-indicators sma rsi
+python -m visualization.visualize -t AAPL -s 2024-01-01 -e 2024-06-11 -i 1d --indicators "sma:20,50;rsi:14"
 ```
 
 ## Development Issues
