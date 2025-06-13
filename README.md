@@ -1,6 +1,6 @@
 # projectAlgo
 
-![Project Logo](assets/ExoCAM_LOGO.png "projectAlgo Logo")
+<img src="assets/logo.png" alt="Project Logo" width="200" title="projectAlgo Logo"
 
 an algorithmic trading suite in python by storyofthewolf
 
