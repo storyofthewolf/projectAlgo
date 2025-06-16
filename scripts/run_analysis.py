@@ -1,4 +1,4 @@
-# projectAlgo/run_analysis.py
+# /projectAlgo/run_analysis.py
 
 import pandas as pd
 from core.classes import Stock
@@ -37,7 +37,7 @@ def main():
     # Result: A NEW DataFrame is returned. The stock.historical_data remains unchanged.
     sma_window = 20
     print(f"\n--- Applying SMA({sma_window}) - NOT in_place ---")
-    df_with_sma = stock.calculate_indicator_indicator(calculate_sma, window=sma_window, in_place=False)
+    df_with_sma = stock.calculate_indicator(calculate_sma, window=sma_window, in_place=False)
 
     if df_with_sma is not None:
         print(f"DataFrame with SMA({sma_window}) (last 5 rows):")

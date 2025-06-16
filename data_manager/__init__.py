@@ -1,4 +1,4 @@
-# projectAlgo/data_manager/__init__.py
+# /projectAlgo/data_manager/__init__.py
 
 # Re-export functions from data_manager_functions.py
 from .data_manager_functions import get_historical_data, save_data_to_csv, load_data_from_csv

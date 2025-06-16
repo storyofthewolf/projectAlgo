@@ -64,9 +64,12 @@ class Stock:
             print(f"No local data found for {self.ticker} with specified parameters.")
             return False
 
+    # consider depreciating, see notes below.
     def calculate_indicator(self, indicator_func, column='Close', in_place=True, df_to_use=None, **indicator_kwargs):
         """
         Calculates a technical indicator using a provided function.
+        Conveience function for manipulating Stock class dataframes.
+        Could perhaps depreciate as it is no longer central to visualization, strategy, and backtesting.
 
         Args:
             indicator_func (function): The function to calculate the indicator (e.g., calculate_sma).

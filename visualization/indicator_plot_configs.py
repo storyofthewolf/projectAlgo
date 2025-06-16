@@ -1,4 +1,4 @@
-# projectAlgo/visualization/indicator_plot_configs.py
+# /projectAlgo/visualization/indicator_plot_configs.py
 
 # Import all your technical indicator functions from the analysis module
 from analysis.technical_analysis import calculate_sma, calculate_rsi
