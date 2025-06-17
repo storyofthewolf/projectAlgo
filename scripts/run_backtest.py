@@ -1,4 +1,4 @@
-# /projectAlgo/scripts/run_backtest.py
+# projectAlgo/scripts/run_backtest.py
 
 import sys
 import os
@@ -13,7 +13,7 @@ sys.path.insert(0, project_root)
 # Import the necessary classes/modules
 from core.classes import Stock
 from backtesting.engine import Backtester
-from strategy.sma_crossover import SMACrossoverStrategy # Your concrete strategy
+from strategies.sma_crossover import SMACrossoverStrategy # Your concrete strategy
 
 print("--- Running example backtest ---")
 ticker = "MSFT"

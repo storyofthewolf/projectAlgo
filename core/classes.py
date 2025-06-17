@@ -1,4 +1,4 @@
-# algo/core/classes.py
+# projectAlgo/core/classes.py
 
 import pandas as pd
 # Import the specific functions from data_manager_functions.py

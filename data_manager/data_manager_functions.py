@@ -1,4 +1,4 @@
-# /projectAlgo/data_manager/data_manager_functions.py
+# projectAlgo/data_manager/data_manager_functions.py
 
 import yfinance as yf
 import pandas as pd

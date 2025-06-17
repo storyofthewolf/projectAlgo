@@ -1,4 +1,4 @@
-# /projectAlgo/run_analysis.py
+# projectAlgo/scripts/run_analysis.py
 
 import pandas as pd
 from core.classes import Stock

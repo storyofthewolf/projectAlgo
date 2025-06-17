@@ -1,4 +1,4 @@
-# /projectAlgo/data_manager/get_data.py
+# /projectAlgo/scripts/get_data.py
 
 import argparse
 from datetime import datetime

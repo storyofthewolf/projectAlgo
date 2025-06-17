@@ -85,6 +85,7 @@ Produce simple visualizations using mplfinance
 ```bash
 python -m visualization.plot_static -t ISRG -s 2023-01-01 -e 2024-06-11 -i 1d --indicators "sma:20,50, 100;rsi:14,28"
 python -m visualization.dashboard_app
+python -m scripts.run_backtest
 ```
 
 ## Development Issues

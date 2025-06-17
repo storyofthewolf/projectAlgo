@@ -3,6 +3,8 @@
 # Byte-code files
 *.pyc
 __pycache__/
+.pytest_cache
+
 
 # Virtual environment
 venv/

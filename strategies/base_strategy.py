@@ -1,4 +1,4 @@
-# /projectAlgo/strategy/base_strategy.py
+# projectAlgo/strategy/base_strategy.py
 
 from abc import ABC, abstractmethod
 import pandas as pd
