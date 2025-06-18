@@ -1,4 +1,4 @@
-# /projectAlgo/visualization/visualize.py
+# projectAlgo/visualization/plot_static.py
 
 import argparse
 import mplfinance as mpf

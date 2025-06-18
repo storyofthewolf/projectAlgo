@@ -17,9 +17,9 @@ from strategies.sma_crossover import SMACrossoverStrategy # Your concrete strate
 
 print("--- Running example backtest ---")
 ticker = "MSFT"
-interval = "1d"
-start_date = "2023-01-01"
-end_date = "2023-12-31"
+interval = "5m"
+start_date = "2025-04-20"
+end_date = "2025-06-15"
 
 # 1. Get Data
 stock = Stock(ticker) 

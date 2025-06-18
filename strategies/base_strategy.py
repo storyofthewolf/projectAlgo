@@ -1,59 +1,48 @@
-# projectAlgo/strategy/base_strategy.py
+# projectAlgo/strategies/base_strategy.py
 
 from abc import ABC, abstractmethod
-import pandas as pd
-import numpy as np
-import sys
-import os
-
-# Add projectAlgo root to the Python path for imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..', '..')
-sys.path.insert(0, project_root)
-
-# Import necessary functions from your analysis module
-from analysis.technical_analysis import calculate_sma, calculate_rsi # etc.
+import pandas as pd # Import pandas for type hinting
 
 class BaseStrategy(ABC):
     """
-    Abstract Base Class for all trading strategies.
-    Concrete strategies must implement apply_indicators and generate_signals.
+    Abstract base class for all trading strategies.
+    Defines the interface that all concrete strategies must implement.
     """
-    def __init__(self, data: pd.DataFrame):
-        if not isinstance(data, pd.DataFrame) or data.empty:
-            raise ValueError("Strategy requires a non-empty Pandas DataFrame.")
-        self._data = data.copy() # Store a copy of the data internally
-        self.name = "Base Strategy" # Default name, can be overridden
+    def __init__(self, name: str = "Unnamed Strategy"):
+        self.name = name
+        self._data: pd.DataFrame = pd.DataFrame() # Internal storage for processed data
+        print(f"BaseStrategy '{self.name}' initialized.")
 
-    @property
-    def data(self) -> pd.DataFrame:
-        """Provides access to the strategy's internal data."""
-        return self._data
-
+    # Renamed from 'apply_indicators' to 'calculate_indicator' to match user's preference (2025-06-12)
     @abstractmethod
-    def apply_indicators(self):
+    def calculate_indicator(self):
         """
-        Applies all necessary technical indicators to the strategy's data.
-        Modifies self._data in-place by adding new indicator columns.
+        Abstract method to calculate technical indicators required by the strategy
+        and add them to the self._data DataFrame.
         """
         pass
 
     @abstractmethod
-    def generate_signals(self) -> pd.DataFrame:
+    def generate_signals(self):
         """
-        Generates buy (1), sell (-1), or no-position (0) signals based on the applied indicators.
-        Adds a 'signal' column to self._data.
-
-        Returns:
-            pd.DataFrame: The DataFrame with the 'signal' column added.
+        Abstract method to generate buy/sell signals based on the calculated indicators
+        and add a 'signal' column (1 for buy, -1 for sell, 0 for hold) to self._data.
         """
         pass
 
-    def get_strategy_data(self) -> pd.DataFrame:
+    def get_strategy_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Executes the full strategy logic and returns the data with indicators and signals.
+        This method is called by the backtesting engine. It orchestrates the
+        calculation of indicators and generation of signals.
+        
+        Concrete strategies should implement their logic by setting self._data
+        and then calling self.calculate_indicator() and self.generate_signals().
         """
-        self.apply_indicators()
-        return self.generate_signals()
-
-
+        if not isinstance(data, pd.DataFrame):
+            raise ValueError("Input 'data' must be a pandas DataFrame.")
+        self._data = data.copy() # Ensure we work on a copy of the passed data
+        
+        self.calculate_indicator() # Now calls the correctly named method
+        self.generate_signals()
+        
+        return self._data # Return the processed DataFrame
