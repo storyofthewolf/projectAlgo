@@ -17,11 +17,6 @@ project_root = os.path.join(current_dir, '..', '..') # Go up two levels to reach
 sys.path.insert(0, project_root)
 # --- END PATH SETUP ---
 
-# No longer need to import Backtester or Strategy here, as they are used by the runner
-# from backtesting.engine import Backtester
-# from strategies.sma_crossover import SMACrossoverStrategy
-# from core.classes import Stock # Only needed if loading raw data directly, which we're not doing here now
-
 # --- Function to Load Backtest Results ---
 def load_backtest_results(filepath: str):
     """Loads backtest results from a pickled file."""
@@ -55,11 +50,17 @@ results_filepath = sys.argv[1]
 (equity_curve, trades_df, processed_data, performance_metrics, 
  strategy_name, initial_capital_value, slippage_bps_value) = load_backtest_results(results_filepath)
 
+# --- IMPORTANT: Ensure 'date' column is Datetime for plotting, if trades_df is not empty ---
+# CHANGED: Confirming 'date' column for conversion
+if not trades_df.empty and 'date' in trades_df.columns:
+    trades_df['date'] = pd.to_datetime(trades_df['date']) # Ensure it's datetime
+
 # Handle potential empty results after loading (e.g., if a backtest truly yielded no trades)
 if equity_curve.empty:
     equity_curve = pd.Series([initial_capital_value], index=[pd.Timestamp.now()])
 if trades_df.empty:
-    trades_df = pd.DataFrame(columns=['date', 'type', 'price', 'shares', 'profit_loss'])
+    # CHANGED: Recreate with confirmed column names: 'date' and 'profit_loss'
+    trades_df = pd.DataFrame(columns=['date', 'type', 'price', 'shares', 'cost_basis', 'profit_loss'])
     
 # --- Initialize the Dash app ---
 app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css']) # Basic CSS
@@ -96,17 +97,17 @@ buy_signals = trades_df[trades_df['type'] == 'BUY']
 sell_signals = trades_df[trades_df['type'] == 'SELL']
 
 buy_signal_scatter = go.Scatter(
-    x=buy_signals['date'], y=buy_signals['price'], mode='markers', name='Buy Signal',
+    x=buy_signals['date'], y=buy_signals['price'], mode='markers', name='Buy Signal', # CONFIRMED: 'date'
     marker=dict(symbol='triangle-up', size=10, color='lime'),
     hovertemplate='Date: %{x}<br>Buy Price: %{y:.2f}<br>Shares: %{customdata[0]}<extra></extra>',
     customdata=buy_signals[['shares']].values
 )
 
 sell_signal_scatter = go.Scatter(
-    x=sell_signals['date'], y=sell_signals['price'], mode='markers', name='Sell Signal',
+    x=sell_signals['date'], y=sell_signals['price'], mode='markers', name='Sell Signal', # CONFIRMED: 'date'
     marker=dict(symbol='triangle-down', size=10, color='magenta'),
     hovertemplate='Date: %{x}<br>Sell Price: %{y:.2f}<br>Shares: %{customdata[0]}<br>P/L: %{customdata[1]:.2f}<extra></extra>',
-    customdata=sell_signals[['shares', 'profit_loss']].values
+    customdata=sell_signals[['shares', 'profit_loss']].values # CONFIRMED: 'profit_loss'
 )
 
 # Equity Curve
@@ -199,6 +200,7 @@ app.layout = html.Div(children=[
         'border': '1px solid #555555',
         'border-radius': '10px',
         'background-color': '#282828',
+        'color': '#E0E0E0',
         'box-shadow': '0px 0px 15px rgba(0,255,255,0.2)'
     }),
     
@@ -206,7 +208,8 @@ app.layout = html.Div(children=[
     html.Div([
         dash_table.DataTable(
             id='trades-table',
-            columns=[{"name": i.replace('_', ' ').title(), "id": i} for i in trades_df.columns],
+            # This line dynamically gets columns. 'id' will be 'profit_loss' based on your data
+            columns=[{"name": i.replace('_', ' ').title(), "id": i} for i in trades_df.columns], 
             data=trades_df.to_dict('records'),
             sort_action="native",
             filter_action="native",
@@ -227,9 +230,10 @@ app.layout = html.Div(children=[
                 'color': '#FFFFFF'
             },
             style_data_conditional=[
-                {'if': {'column_id': 'Profit Loss', 'filter_query': '{Profit Loss} > 0'},
+                # CONFIRMED: 'profit_loss' for styling conditions
+                {'if': {'column_id': 'profit_loss', 'filter_query': '{profit_loss} > 0'}, 
                  'color': 'lime'},
-                {'if': {'column_id': 'Profit Loss', 'filter_query': '{Profit Loss} < 0'},
+                {'if': {'column_id': 'profit_loss', 'filter_query': '{profit_loss} < 0'}, 
                  'color': 'magenta'}
             ]
         )
@@ -242,4 +246,4 @@ if __name__ == '__main__':
     print(f"Example: python backtest_dashboard_app.py ../data/backtest_results_sma.pkl")
     print(f"Navigate your web browser to: http://127.0.0.1:8050/")
     print(f"Press Ctrl+C in the terminal to stop the server.")
-    app.run_server(debug=True)
+    app.run(debug=True)
