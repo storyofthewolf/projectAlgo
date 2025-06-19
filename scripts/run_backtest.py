@@ -17,7 +17,7 @@ sys.path.insert(0, project_root) # Add projectAlgo root to system path
 
 from backtesting.engine import Backtester
 from strategies.sma_crossover import SMACrossoverStrategy
-from core.classes import Stock # For loading real data
+from core.financial_objects import Stock # For loading real data
 from analysis.performance_metrics import analyze_backtest_results
 
 # --- Configuration for Backtest ---

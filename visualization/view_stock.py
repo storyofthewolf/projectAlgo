@@ -13,7 +13,7 @@ project_root = os.path.join(current_dir, '..', '..')
 sys.path.insert(0, project_root)
 # --- END REVISED PATH SETUP ---
 
-from core.classes import Stock # Import your Stock class
+from core.financial_objects import Stock # Import your Stock class
 
 # --- Initialize the Dash app ---
 app = Dash(__name__)

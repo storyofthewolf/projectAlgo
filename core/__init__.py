@@ -2,4 +2,4 @@
 # Package for core classes and other shared elements
 
 # Re-export classes
-from .classes import Stock
+from .financial_objects import Stock

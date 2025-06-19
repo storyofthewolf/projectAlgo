@@ -1,7 +1,7 @@
 # projectAlgo/scripts/run_analysis.py
 
 import pandas as pd
-from core.classes import Stock
+from core.financial_objects import Stock
 # Import the specific indicator functions from your analysis.technical_analysis module
 from analysis.technical_analysis import calculate_sma, calculate_rsi
 from datetime import datetime, timedelta

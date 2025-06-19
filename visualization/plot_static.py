@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 # Import your Stock class
-from core.classes import Stock
+from core.financial_objects import Stock
 
 # --- MODIFIED: Import INDICATOR_PROPERTIES from the new config file ---
 from visualization.indicator_plot_configs import INDICATOR_PROPERTIES
