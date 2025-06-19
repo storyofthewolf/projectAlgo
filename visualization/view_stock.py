@@ -1,4 +1,4 @@
-# /projectAlgo/visualization/dashboard_app.py
+# /projectAlgo/visualization/view_stock.py
 
 from dash import Dash, html, dcc, Input, Output # Import Input and Output
 import plotly.graph_objects as go

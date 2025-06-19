@@ -1,4 +1,4 @@
-# projectAlgo/visualization/backtest_dashboard_app.py
+# projectAlgo/visualization/view_backtest.py
 
 import dash
 from dash import html, dcc, dash_table
@@ -43,7 +43,7 @@ def load_backtest_results(filepath: str):
 # --- Main Logic for Data Loading ---
 # This app now expects the results file path as a command-line argument
 if len(sys.argv) < 2:
-    print("Usage: python backtest_dashboard_app.py <path_to_backtest_results_file>")
+    print("Usage: python view_backtest.py <path_to_backtest_results_file>")
     sys.exit(1)
 
 results_filepath = sys.argv[1]
@@ -243,7 +243,7 @@ app.layout = html.Div(children=[
 if __name__ == '__main__':
     print(f"\n--- Starting Backtest Dash App ---")
     print(f"To run this app, you must provide a path to a backtest results file.")
-    print(f"Example: python backtest_dashboard_app.py ../data/backtest_results_sma.pkl")
+    print(f"Example: python view_backtest.py ../data/backtest_results_sma.pkl")
     print(f"Navigate your web browser to: http://127.0.0.1:8050/")
     print(f"Press Ctrl+C in the terminal to stop the server.")
     app.run(debug=True)

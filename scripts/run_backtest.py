@@ -1,59 +1,108 @@
 # projectAlgo/scripts/run_backtest.py
+# runs backtest and saves output to pkl file
 
 import sys
 import os
 import pandas as pd
+import pickle # For saving/loading Python objects
+import subprocess # For launching the dashboard
+from datetime import datetime # For unique filename suffix
 
-# Add projectAlgo root to the Python path for imports
-# This ensures imports like 'backtesting.engine' and 'strategy.sma_crossover' work correctly
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..', '..') # Go up two levels to 'projectAlgo'
-sys.path.insert(0, project_root)
+# --- PATH SETUP for projectAlgo root ---
+# Calculate project_root by going up one level from 'scripts' directory
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.join(current_script_dir, '..')
+sys.path.insert(0, project_root) # Add projectAlgo root to system path
+# --- END PATH SETUP ---
 
-# Import the necessary classes/modules
-from core.classes import Stock
 from backtesting.engine import Backtester
-from strategies.sma_crossover import SMACrossoverStrategy # Your concrete strategy
+from strategies.sma_crossover import SMACrossoverStrategy
+from core.classes import Stock # For loading real data
+from analysis.performance_metrics import analyze_backtest_results
 
-print("--- Running example backtest ---")
-ticker = "MSFT"
-interval = "5m"
-start_date = "2025-04-20"
-end_date = "2025-06-15"
+# --- Configuration for Backtest ---
+TICKER_SYMBOL = "SPY"
+START_DATE = "2023-07-01"
+END_DATE = "2025-06-01"
+INTERVAL = "1h"
+INITIAL_CAPITAL = 100000.0
+SLIPPAGE_BPS = 5 # 5 basis points = 0.05%
 
-# 1. Get Data
-stock = Stock(ticker) 
+# Strategy Parameters (for SMA Crossover)
+FAST_WINDOW = 10
+SLOW_WINDOW = 30
+STRATEGY_NAME = "SMA Crossover Strategy (SPY)" # Descriptive name
+
+# --- Define where to save results ---
+# Now, results_dir is relative to project_root, which is correct
+results_dir = os.path.join(project_root, 'data', 'backtest_results')
+os.makedirs(results_dir, exist_ok=True) # Ensure the directory exists
+
+# Create a unique filename for the results using a timestamp
+date_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+results_filename = f"{STRATEGY_NAME.replace(' ', '_').replace('(', '').replace(')', '')}_{date_suffix}.pkl"
+results_filepath = os.path.join(results_dir, results_filename)
+
+print(f"Results will be saved to: {results_filepath}")
+
+# --- 1. Load Real Data ---
+print(f"Loading data for {TICKER_SYMBOL} from {START_DATE} to {END_DATE} ({INTERVAL})...")
+stock = Stock(TICKER_SYMBOL)
 try:
-    stock.load_local_data(start_date, end_date, interval)
+    # Attempt to load local data first
+    stock.load_local_data(START_DATE, END_DATE, INTERVAL)
     if stock.historical_data.empty:
-        print(f"No local data for {ticker}, downloading...")
-        stock.download_data(start_date, end_date, interval)
+        print(f"No local data found for {TICKER_SYMBOL}. Downloading data...")
+        stock.download_data(START_DATE, END_DATE, INTERVAL)
         if stock.historical_data.empty:
-            raise ValueError("Could not get data.")
+            raise ValueError(f"Could not retrieve any data for {TICKER_SYMBOL}.")
 except Exception as e:
-    print(f"Error getting data: {e}")
+    print(f"Failed to load/download data for {TICKER_SYMBOL}: {e}")
     sys.exit(1)
 
-df_data_for_strategy = stock.historical_data.copy()
+data = stock.historical_data.copy()
+if data.empty:
+    print(f"No valid historical data retrieved for {TICKER_SYMBOL}. Exiting.")
+    sys.exit(1)
 
-# 2. Instantiate the Strategy
-# Pass the data to the strategy at its creation
-my_strategy = SMACrossoverStrategy(df_data_for_strategy, fast_window=20, slow_window=50)
+print(f"Data loaded successfully. Shape: {data.shape}")
 
-# 3. Run Backtest with the strategy object
-backtester = Backtester(df_data_for_strategy, initial_capital=100000)
-equity_curve, trades_df = backtester.run_strategy(my_strategy)
+# --- 2. Instantiate Backtester and Strategy ---
+backtester = Backtester(data, initial_capital=INITIAL_CAPITAL, slippage_bps=SLIPPAGE_BPS)
+strategy = SMACrossoverStrategy(fast_window=FAST_WINDOW, slow_window=SLOW_WINDOW, name=STRATEGY_NAME)
 
-if equity_curve is not None:
-    print("\nEquity Curve Head:")
-    print(equity_curve.head())
-    print("\nEquity Curve Tail:")
-    print(equity_curve.tail())
+# --- 3. Run Backtest ---
+print(f"Running backtest with {STRATEGY_NAME}...")
+equity_curve, trades_df = backtester.run_strategy(strategy)
 
-    if not trades_df.empty:
-        print("\nTrades Executed:")
-        print(trades_df)
-    else:
-        print("\nNo trades executed for this strategy.")
-else:
-    print("\nBacktest failed or returned no results.")
+# --- 4. Calculate Performance Metrics ---
+print("Calculating performance metrics...")
+performance_metrics = analyze_backtest_results(equity_curve, trades_df, INITIAL_CAPITAL)
+
+# --- 5. Prepare Results for Saving ---
+backtest_results = {
+    'equity_curve': equity_curve,
+    'trades_df': trades_df,
+    'processed_data': backtester.data, # This contains OHLC, indicators, and signals
+    'performance_metrics': performance_metrics,
+    'strategy_name': STRATEGY_NAME,
+    'initial_capital': INITIAL_CAPITAL,
+    'slippage_bps': SLIPPAGE_BPS,
+    'fast_window': FAST_WINDOW,
+    'slow_window': SLOW_WINDOW,
+    'ticker_symbol': TICKER_SYMBOL,
+    'start_date': START_DATE,
+    'end_date': END_DATE,
+    'interval': INTERVAL
+}
+
+# --- 6. Save Results to File ---
+print(f"Saving backtest results to: {results_filepath}")
+try:
+    with open(results_filepath, 'wb') as f:
+        pickle.dump(backtest_results, f)
+    print("Results saved successfully.")
+except Exception as e:
+    print(f"Error saving results: {e}")
+    sys.exit(1)
+
