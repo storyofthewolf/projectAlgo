@@ -246,4 +246,5 @@ if __name__ == '__main__':
     print(f"Example: python view_backtest.py ../data/backtest_results_sma.pkl")
     print(f"Navigate your web browser to: http://127.0.0.1:8050/")
     print(f"Press Ctrl+C in the terminal to stop the server.")
-    app.run(debug=True)
+    app.run(debug=True, host='127.0.0.1')
+    #app.run(debug=True)

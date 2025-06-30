@@ -1,5 +1,4 @@
-# projectAlgo/scripts/run_backtest.py
-# runs backtest and saves output to pkl file
+## projectAlgo/run_backtest.py
 
 import sys
 import os
@@ -11,49 +10,59 @@ from datetime import datetime # For unique filename suffix
 # --- PATH SETUP for projectAlgo root ---
 # Calculate project_root by going up one level from 'scripts' directory
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_script_dir, '..')
+# Assuming run_backtest.py is in projectAlgo/scripts/
+project_root = os.path.abspath(os.path.join(current_script_dir, '..'))
 sys.path.insert(0, project_root) # Add projectAlgo root to system path
 # --- END PATH SETUP ---
 
 from backtesting.engine import Backtester
 from strategies.sma_crossover import SMACrossoverStrategy
-from core.financial_objects import Stock # For loading real data
+from core.financial_objects import Stock # Ensure Stock is imported from here
 from analysis.performance_metrics import analyze_backtest_results
 
 # --- Configuration for Backtest ---
-TICKER_SYMBOL = "SPY"
-START_DATE = "2023-07-01"
-END_DATE = "2025-06-01"
+TICKER_SYMBOL = "ISRG"
+START_DATE = "2024-01-01"
+END_DATE = "2025-01-01"
 INTERVAL = "1h"
 INITIAL_CAPITAL = 100000.0
 SLIPPAGE_BPS = 5 # 5 basis points = 0.05%
 
 # Strategy Parameters (for SMA Crossover)
-FAST_WINDOW = 10
-SLOW_WINDOW = 30
-STRATEGY_NAME = "SMA Crossover Strategy (SPY)" # Descriptive name
+FAST_WINDOW = 50
+SLOW_WINDOW = 200
+STRATEGY_NAME = "SMA Crossover Strategy" # Descriptive name
 
-# --- Define where to save results ---
+# --- Define where to save results and historical data ---
 # Now, results_dir is relative to project_root, which is correct
 results_dir = os.path.join(project_root, 'data', 'backtest_results')
 os.makedirs(results_dir, exist_ok=True) # Ensure the directory exists
 
+# NEW: Define absolute path for historical data
+HISTORICAL_DATA_DIR = os.path.join(project_root, 'data', 'historical_data')
+os.makedirs(HISTORICAL_DATA_DIR, exist_ok=True) # Ensure historical data directory exists
+
 # Create a unique filename for the results using a timestamp
 date_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-results_filename = f"{STRATEGY_NAME.replace(' ', '_').replace('(', '').replace(')', '')}_{date_suffix}.pkl"
+results_filename = f"{STRATEGY_NAME.replace(' ', '_').replace('(', '').replace(')', '')}_{TICKER_SYMBOL}_{date_suffix}.pkl"
 results_filepath = os.path.join(results_dir, results_filename)
 
 print(f"Results will be saved to: {results_filepath}")
+print(f"Historical data will be managed in: {HISTORICAL_DATA_DIR}")
 
 # --- 1. Load Real Data ---
 print(f"Loading data for {TICKER_SYMBOL} from {START_DATE} to {END_DATE} ({INTERVAL})...")
 stock = Stock(TICKER_SYMBOL)
 try:
-    # Attempt to load local data first
-    stock.load_local_data(START_DATE, END_DATE, INTERVAL)
+    # Attempt to load local data first, explicitly passing the correct directory
+    print(f"Attempting to load local data for {TICKER_SYMBOL} from {START_DATE} to {END_DATE} ({INTERVAL}) from {HISTORICAL_DATA_DIR}...")
+    # MODIFIED CALL: Pass HISTORICAL_DATA_DIR
+    stock.load_local_data(START_DATE, END_DATE, INTERVAL, data_dir=HISTORICAL_DATA_DIR)
+    
     if stock.historical_data.empty:
         print(f"No local data found for {TICKER_SYMBOL}. Downloading data...")
-        stock.download_data(START_DATE, END_DATE, INTERVAL)
+        # MODIFIED CALL: Pass HISTORICAL_DATA_DIR
+        stock.download_data(START_DATE, END_DATE, INTERVAL, data_dir=HISTORICAL_DATA_DIR)
         if stock.historical_data.empty:
             raise ValueError(f"Could not retrieve any data for {TICKER_SYMBOL}.")
 except Exception as e:

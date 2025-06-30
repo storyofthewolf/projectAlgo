@@ -20,11 +20,19 @@ class Stock:
     def __repr__(self):
         return f"<Stock ticker={self.ticker}>"
 
-    def download_data(self, start_date: str, end_date: str, interval: str = '1d', data_dir: str = 'data/historical_data'):
+    def download_data(self, start_date: str, end_date: str, interval: str = '1d', data_dir: str = None):
         """
         Downloads historical data for this stock using get_historical_data,
         and saves it using save_data_to_csv.
+
+         Args:
+            start_date (str): Start date for data download (YYYY-MM-DD).
+            end_date (str): End date for data download (YYYY-MM-DD).
+            interval (str): Data interval (e.g., '1d', '1h'). Defaults to '1d'.
+            data_dir (str): Absolute path to the directory where data should be saved.
+                            THIS IS NOW REQUIRED TO BE PASSED.
         """
+
         print(f"Downloading data for {self.ticker} from {start_date} to {end_date} ({interval})...")
         df = get_historical_data(
             ticker=self.ticker,
@@ -46,10 +54,17 @@ class Stock:
         else:
             print(f"Failed to download data for {self.ticker}.")
 
-    def load_local_data(self, start_date: str, end_date: str, interval: str = '1d', data_dir: str = 'data/historical_data') -> bool:
+    def load_local_data(self, start_date: str, end_date: str, interval: str = '1d', data_dir: str = None) -> bool:
         """
         Loads historical data for this stock from local CSV using load_data_from_csv.
         Returns True if data was loaded, False otherwise.
+
+        Args:
+            start_date (str): Start date for data load (YYYY-MM-DD).
+            end_date (str): End date for data load (YYYY-MM-DD).
+            interval (str): Data interval (e.g., '1d', '1h'). Defaults to '1d'.
+            data_dir (str): Absolute path to the directory where data is stored.
+                            THIS IS NOW REQUIRED TO BE PASSED.
         """
         print(f"Attempting to load local data for {self.ticker} from {start_date} to {end_date} ({interval})...")
         df = load_data_from_csv(
