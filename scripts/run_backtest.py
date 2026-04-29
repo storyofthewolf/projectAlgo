@@ -1,4 +1,4 @@
-## projectAlgo/run_backtest.py
+# projectAlgo/run_backtest.py
 
 import sys
 import os
@@ -6,15 +6,6 @@ import pandas as pd
 import pickle # For saving/loading Python objects
 import subprocess # For launching the dashboard
 from datetime import datetime # For unique filename suffix
-
-# --- PATH SETUP for projectAlgo root ---
-# Calculate project_root by going up one level from 'scripts' directory
-current_script_dir = os.path.dirname(os.path.abspath(__file__))
-# Assuming run_backtest.py is in projectAlgo/scripts/
-project_root = os.path.abspath(os.path.join(current_script_dir, '..'))
-sys.path.insert(0, project_root) # Add projectAlgo root to system path
-# --- END PATH SETUP ---
-
 from backtesting.engine import Backtester
 from strategies.sma_crossover import SMACrossoverStrategy
 from core.financial_objects import Stock # Ensure Stock is imported from here
@@ -32,6 +23,13 @@ SLIPPAGE_BPS = 5 # 5 basis points = 0.05%
 FAST_WINDOW = 50
 SLOW_WINDOW = 200
 STRATEGY_NAME = "SMA Crossover Strategy" # Descriptive name
+
+# --- Path Setup ---
+# Calculate project_root by going up one level from 'scripts' directory
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+# Assuming run_backtest.py is in projectAlgo/scripts/
+project_root = os.path.abspath(os.path.join(current_script_dir, '..'))
+sys.path.insert(0, project_root) # Add projectAlgo root to system path
 
 # --- Define where to save results and historical data ---
 # Now, results_dir is relative to project_root, which is correct

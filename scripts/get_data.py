@@ -13,6 +13,8 @@ def main():
     parser.add_argument("-o", "--output_dir", type=str, default="data/historical_data", help="Directory to save data. Default: data/historical_data")
 
     args = parser.parse_args()
+  
+    print(f"/------------------------------  get_data.py ------------------------------/")
 
     # Iterate through each ticker and manage its data using the Stock object
     for ticker_symbol in args.tickers:
@@ -45,6 +47,7 @@ def main():
         else:
             print(f"No data available for {stock.ticker} after all attempts.")
 
+    print(f"/--------------------------------------------------------------------------/")
 
 if __name__ == "__main__":
     main()

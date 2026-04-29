@@ -30,6 +30,7 @@ This project provides a python framework for collecting, managing, and visualizi
 - 1: collecting market data from yahoo finance.
 - 2: make static plots of market data with technical indicators using mplfinance
 
+
 ---
 
 ## Getting Started
@@ -68,26 +69,47 @@ Step-by-step instructions on how to get a development environment running.
 
 How to use your scripts. Provide clear examples.
 
-#### 1. Data Collection (`get_data.py`)
+#### 1. Data Handling Scripts
 
-Download historical stock data:
+```bash
+Download historical stock data
+scripts/get_data.py
+scripts/clean_data.py
 
 ```bash
 # Navigate to the project root (e.g., /Users/wolfe/Desktop/myprojects/algo)
-python -m data_manager.get_data --tickers AAPL MSFT --interval 1d --start 2023-01-01 --end 2024-12-31 --output_dir data/historical_data
+python -m scripts.get_data --tickers AAPL MSFT --interval 1d --start 2023-01-01 --end 2024-12-31 --output_dir data/historical_data
 ```
 
+#### 2. Technical Analysis
 
-#### 2. Plotting (`visualize.py`)
 
-Produce simple visualizations using mplfinance
+#### 3. Backtesting
+```bash
+python -m scripts.run_backtest
+```
+Script to run a backtest.  Inputs for backtest configuration are set in this script.
+
+
+
+#### 4. Visualization
 
 ```bash
 python -m visualization.plot_static -t ISRG -s 2023-01-01 -e 2024-06-11 -i 1d --indicators "sma:20,50, 100;rsi:14,28"
+```
+This produces a static plot.
+
+```bash
 python -m visualization.view_stock
-python -m scripts.run_backtest
+```
+
+Opens a gui stock viewer in a local http server for viewing in browser
+
+```bash
 python visualization/view_backtest.py data/backtest_results/backtest_results_SMA_Crossover_Strategy_SPY_20250618_162906.pkl
 ```
+
+Opens a dashboard for visualization the results of a backtest.
 
 ## Development Issues
 1. Downloading data for short timeframes and intervals does not source correctly.  

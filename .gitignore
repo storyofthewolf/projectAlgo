@@ -36,3 +36,6 @@ data/
 
 # Logs
 *.log
+
+
+.DS_Store

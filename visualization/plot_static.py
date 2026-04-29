@@ -8,7 +8,7 @@ from datetime import datetime
 # Import your Stock class
 from core.financial_objects import Stock
 
-# --- MODIFIED: Import INDICATOR_PROPERTIES from the new config file ---
+# --- Import INDICATOR_PROPERTIES from indicator_plot_configs.py ---
 from visualization.indicator_plot_configs import INDICATOR_PROPERTIES
 
 # --- The parse_indicator_config function remains the same (for now) ---
@@ -26,7 +26,7 @@ def parse_indicator_config(config_string):
         if ':' in spec:
             name, params_str = spec.split(':', 1)
             name = name.strip().lower()
-            # --- MODIFIED: Check against INDICATOR_PROPERTIES for valid indicator names ---
+            # --- Check against INDICATOR_PROPERTIES for valid indicator names ---
             if name in INDICATOR_PROPERTIES:
                 windows = [int(p.strip()) for p in params_str.split(',') if p.strip().isdigit()]
                 if windows:
@@ -37,7 +37,7 @@ def parse_indicator_config(config_string):
                 print(f"Warning: Indicator '{name}' not recognized or defined in INDICATOR_PROPERTIES. Skipping.")
         else:
             name = spec.strip().lower()
-            # --- MODIFIED: Check against INDICATOR_PROPERTIES for valid indicator names ---
+            # --- Check against INDICATOR_PROPERTIES for valid indicator names ---
             if name in INDICATOR_PROPERTIES:
                 indicators_to_plot[name] = {'windows': []} # Empty list indicates no window or default
             else:
@@ -58,7 +58,7 @@ def plot_stock_data(ticker, start_date, end_date, interval, data_dir, indicators
         indicators_config_str (str, optional): A string defining indicators and their params
                                                 (e.g., "sma:20,50;rsi:14").
     """
-    # ... (Data Loading remains the same) ...
+    # --- 1. Load or Download Stock Data ---
     stock = Stock(ticker=ticker)
     
     if not stock.load_local_data(start_date, end_date, interval, data_dir):
@@ -143,7 +143,7 @@ def plot_stock_data(ticker, start_date, end_date, interval, data_dir, indicators
             print(f"Warning: Indicator '{indicator_name}' requested but not defined in INDICATOR_PROPERTIES. Skipping.")
 
 
-    # --- 4. Plotting with mplfinance (remains the same) ---
+    # --- 4. Staic Plotting with mplfinance ---
     print(f"\nDisplaying chart for {ticker} from {start_date} to {end_date} ({interval})...")
     print("Close the window to continue.")
     
@@ -162,7 +162,6 @@ def plot_stock_data(ticker, start_date, end_date, interval, data_dir, indicators
         figscale=1.5,
     )
 
-    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize stock market data and technical indicators.")
     parser.add_argument('-t', '--ticker', type=str, required=True, help="Stock ticker symbol (e.g., AAPL)")
