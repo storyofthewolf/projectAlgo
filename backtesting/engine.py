@@ -2,18 +2,8 @@
 
 import pandas as pd
 import numpy as np
-import sys
-import os
 from core.financial_objects import Transaction
 from math import floor
-
-
-# --- PATH SETUP ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..')
-sys.path.insert(0, project_root)
-# --- END PATH SETUP ---
-
 from strategies.base_strategy import BaseStrategy
 
 class Backtester:
@@ -51,6 +41,7 @@ class Backtester:
         self.open_positions_fifo = [] # List of {'date': date, 'shares': shares, 'price': price} dicts
 
         self.strategy_name = "N/A" # To store the name of the strategy being run
+        self.portfolio_value = initial_capital
 
         # NEW: Slippage parameters
         self.slippage_bps = slippage_bps
@@ -156,8 +147,7 @@ class Backtester:
             self.data.loc[last_date, 'portfolio_value'] = self.portfolio_value
 
         # Fill any remaining NaNs in equity_curve with the last known value (for periods before first trade)
-        self.equity_curve.fillna(method='ffill', inplace=True)
-        self.equity_curve.fillna(method='bfill', inplace=True) # For cases where first trade is very late
+        self.equity_curve = self.equity_curve.ffill().bfill()
 
         print(f"\nBacktest finished for {self.strategy_name}.")
         final_portfolio_value = self.equity_curve.iloc[-1]
@@ -209,31 +199,31 @@ class Backtester:
                 shares_actually_sold = 0
 
                 # Process sales from oldest open positions (FIFO)
-                # Iterate through a copy of the list to allow modification during iteration
-                open_positions_copy = self.open_positions_fifo[:] 
-                
-                for i, lot in enumerate(open_positions_copy):
+                # Iterate front-to-back by index so duplicate lots are never confused
+                lots_to_remove = []
+                for idx in range(len(self.open_positions_fifo)):
                     if shares_to_sell <= 0:
-                        break # All target shares sold
+                        break
 
+                    lot = self.open_positions_fifo[idx]
                     shares_from_this_lot = min(shares_to_sell, lot['shares'])
-                    
-                    # Calculate P&L and cost basis for this portion
+
                     profit_loss_this_lot = (executed_price - lot['price']) * shares_from_this_lot
                     cost_basis_this_lot = lot['price'] * shares_from_this_lot
 
                     total_realized_profit_loss += profit_loss_this_lot
                     total_cost_basis_sold += cost_basis_this_lot
                     shares_actually_sold += shares_from_this_lot
+                    shares_to_sell -= shares_from_this_lot
 
-                    # Update the lot or remove it from the original list
-                    original_lot_index = self.open_positions_fifo.index(lot) # Find original index
                     if shares_from_this_lot == lot['shares']:
-                        self.open_positions_fifo.pop(original_lot_index) # Remove lot if fully sold
+                        lots_to_remove.append(idx)
                     else:
-                        self.open_positions_fifo[original_lot_index]['shares'] -= shares_from_this_lot # Update shares
-                    
-                    shares_to_sell -= shares_from_this_lot # Reduce remaining shares to sell
+                        lot['shares'] -= shares_from_this_lot
+
+                # Remove fully consumed lots in reverse order to preserve earlier indices
+                for idx in reversed(lots_to_remove):
+                    self.open_positions_fifo.pop(idx)
 
                 self.capital += shares_actually_sold * executed_price # Add proceeds to cash
                 self.shares_held -= shares_actually_sold # Reduce total shares held

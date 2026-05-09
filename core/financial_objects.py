@@ -20,25 +20,27 @@ class Stock:
     def __repr__(self):
         return f"<Stock ticker={self.ticker}>"
 
-    def download_data(self, start_date: str, end_date: str, interval: str = '1d', data_dir: str = None):
+    def download_data(self, start_date: str, end_date: str, interval: str = '1d',
+                      data_dir: str = None, source: str = 'yfinance'):
         """
         Downloads historical data for this stock using get_historical_data,
         and saves it using save_data_to_csv.
 
-         Args:
+        Args:
             start_date (str): Start date for data download (YYYY-MM-DD).
             end_date (str): End date for data download (YYYY-MM-DD).
             interval (str): Data interval (e.g., '1d', '1h'). Defaults to '1d'.
             data_dir (str): Absolute path to the directory where data should be saved.
                             THIS IS NOW REQUIRED TO BE PASSED.
+            source (str): Data source ('yfinance' or 'schwab'). Defaults to 'yfinance'.
         """
-
-        print(f"Downloading data for {self.ticker} from {start_date} to {end_date} ({interval})...")
+        print(f"Downloading data for {self.ticker} from {start_date} to {end_date} ({interval}) via {source}...")
         df = get_historical_data(
             ticker=self.ticker,
             start_date=start_date,
             end_date=end_date,
-            interval=interval
+            interval=interval,
+            source=source,
         )
         if not df.empty:
             self.historical_data = df # Update the stock's internal data

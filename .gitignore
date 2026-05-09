@@ -37,5 +37,10 @@ data/
 # Logs
 *.log
 
+# Schwab credentials — never commit these
+.env
+*.env
+!config/schwab_config.example.env
+.schwab_token.json
 
 .DS_Store

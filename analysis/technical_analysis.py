@@ -85,7 +85,7 @@ def calculate_rsi(data: pd.Series | pd.DataFrame, window: int = 14, column: str 
     
     # Fill any remaining NaN values that might occur from initial periods or 0/0 situations not caught
     # (e.g., if first few periods have no change)
-    rsi = rsi.fillna(method='ffill').fillna(method='bfill') # Or just dropna if desired
+    rsi = rsi.ffill().bfill()
     # For RSI, it's common to have NaNs at the beginning due to 'min_periods' and 'diff'
     # These NaNs are typically dropped or left as NaNs.
 

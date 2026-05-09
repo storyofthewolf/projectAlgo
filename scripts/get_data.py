@@ -11,16 +11,18 @@ def main():
     parser.add_argument("-s", "--start", type=str, default="2023-01-01", help="Start date (YYYY-MM-DD). Default: 2023-01-01")
     parser.add_argument("-e", "--end", type=str, default=datetime.today().strftime('%Y-%m-%d'), help="End date (YYYY-MM-DD). Default: today")
     parser.add_argument("-o", "--output_dir", type=str, default="data/historical_data", help="Directory to save data. Default: data/historical_data")
+    parser.add_argument("--source", type=str, default="yfinance", choices=["yfinance", "schwab"],
+                        help="Data source. 'schwab' requires authentication via scripts/schwab_auth.py. Default: yfinance")
 
     args = parser.parse_args()
-  
+
     print(f"/------------------------------  get_data.py ------------------------------/")
 
     # Iterate through each ticker and manage its data using the Stock object
     for ticker_symbol in args.tickers:
         stock = Stock(ticker=ticker_symbol)
 
-        # Attempt to load data first
+        # Attempt to load data first from local cache
         data_loaded = stock.load_local_data(
             start_date=args.start,
             end_date=args.end,
@@ -28,14 +30,15 @@ def main():
             data_dir=args.output_dir
         )
 
-        # If data was not found locally, then download it
+        # If data was not found locally, download it using the chosen source
         if not data_loaded or stock.historical_data.empty:
-            print(f"Local data not found or empty for {ticker_symbol}. Attempting to download.")
+            print(f"Local data not found or empty for {ticker_symbol}. Attempting to download via {args.source}.")
             stock.download_data(
                 start_date=args.start,
                 end_date=args.end,
                 interval=args.interval,
-                data_dir=args.output_dir
+                data_dir=args.output_dir,
+                source=args.source,
             )
         else:
             print(f"Using local data for {ticker_symbol}.")
