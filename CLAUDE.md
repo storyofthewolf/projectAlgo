@@ -101,6 +101,29 @@ The `broker/` package sits alongside this pipeline and provides live data and ac
 3. Implement `generate_signals(self)` — set `self._data['signal']` (1, -1, 0)
 4. Add an entry to `STRATEGY_REGISTRY` in `scripts/run_backtest.py`
 
+## Market Analysis
+
+```bash
+# Pairwise return correlation matrix (terminal table)
+python -m scripts.correlations -t AAPL MSFT NVDA GOOGL SPY
+
+# With interactive heatmap in browser
+python -m scripts.correlations -t AAPL MSFT SPY --plot
+
+# Customise period, interval, and correlation method
+python -m scripts.correlations -t AAPL MSFT SPY -s 2022-01-01 -e 2025-01-01 --interval 1wk --method spearman
+
+# Print ranked pair list alongside the matrix
+python -m scripts.correlations -t AAPL MSFT NVDA --pairs
+```
+
+`analysis/market_analysis.py` exposes three composable functions:
+- `load_aligned_returns(tickers, start, end, ...)` — loads each ticker via the normal data cache/download path, aligns on common trading days (forward-fill then inner-join), returns a returns DataFrame
+- `calculate_correlation_matrix(returns, method)` — wraps `DataFrame.corr()`; methods: `pearson`, `spearman`, `kendall`
+- `summarize_correlations(corr)` — flattens the matrix to a sorted pair list (highest → lowest correlation)
+
+`visualization/plot_correlation.py` — `plot_correlation_heatmap(corr)` renders an annotated Plotly heatmap (red → white → green, −1 to +1).
+
 ## Adding a New Indicator
 
 1. Add `calculate_<name>(data, window, column='Close')` to `analysis/technical_analysis.py`
