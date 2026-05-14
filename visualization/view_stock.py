@@ -1,27 +1,33 @@
 # /projectAlgo/visualization/view_stock.py
+#
+# Usage:
+#   python -m visualization.view_stock
+#   python -m visualization.view_stock --data-dir /absolute/path/to/data/historical_data
 
-from dash import Dash, html, dcc, Input, Output # Import Input and Output
+import argparse
+import os
+from dash import Dash, html, dcc, Input, Output
 import plotly.graph_objects as go
 import pandas as pd
-import sys
-import os
-from datetime import datetime # Import datetime for default dates
+from datetime import datetime
 
-# --- REVISED PATH SETUP ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..', '..')
-sys.path.insert(0, project_root)
-# --- END REVISED PATH SETUP ---
+from core.financial_objects import Stock
 
-from core.financial_objects import Stock # Import your Stock class
+# --- Resolve data directory from CLI arg or default ---
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument('--data-dir', default=None,
+                     help="Directory for cached historical data. Default: data/historical_data under project root.")
+_args, _ = _parser.parse_known_args()
+
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+DATA_DIR = _args.data_dir or os.path.join(_project_root, 'data', 'historical_data')
 
 # --- Initialize the Dash app ---
 app = Dash(__name__)
 
-# Define default values for the inputs
 DEFAULT_TICKER = "AAPL"
 DEFAULT_INTERVAL = "1d"
-DEFAULT_START_DATE = (datetime.now() - pd.DateOffset(years=1)).strftime('%Y-%m-%d') # 1 year ago
+DEFAULT_START_DATE = (datetime.now() - pd.DateOffset(years=1)).strftime('%Y-%m-%d')
 DEFAULT_END_DATE = datetime.now().strftime('%Y-%m-%d')
 
 
@@ -90,20 +96,19 @@ def update_candlestick_chart(ticker, interval, start_date, end_date):
 
     print(f"Updating chart for {ticker} from {start_date} to {end_date} ({interval})...")
 
-    stock_data = Stock(ticker) # Stock class now uses interval in download/load methods, not constructor
-    
-    # Attempt to load or download data
+    stock_data = Stock(ticker)
+
     try:
-        stock_data.load_local_data(start_date, end_date, interval)
+        stock_data.load_local_data(start_date, end_date, interval, data_dir=DATA_DIR)
         if stock_data.historical_data.empty:
-            print(f"No local data found for {ticker} with current parameters. Attempting to download...")
-            stock_data.download_data(start_date, end_date, interval) # Pass interval here
+            print(f"No local data found for {ticker}. Attempting to download...")
+            stock_data.download_data(start_date, end_date, interval, data_dir=DATA_DIR)
             if stock_data.historical_data.empty:
                 print(f"Error: Could not retrieve data for {ticker}. Please check inputs.")
-                return go.Figure() # Return empty figure on data failure
+                return go.Figure()
     except Exception as e:
         print(f"An error occurred during data loading/download: {e}")
-        return go.Figure() # Return empty figure on error
+        return go.Figure()
 
     df = stock_data.historical_data.copy()
 

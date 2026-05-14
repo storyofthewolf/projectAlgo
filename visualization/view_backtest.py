@@ -8,14 +8,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
-import pickle # Used for loading saved Python objects
-
-# --- PATH SETUP for projectAlgo root ---
-# Adjust path to import modules from projectAlgo root
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..', '..') # Go up two levels to reach 'projectAlgo'
-sys.path.insert(0, project_root)
-# --- END PATH SETUP ---
+import pickle
 
 # --- Function to Load Backtest Results ---
 def load_backtest_results(filepath: str):
@@ -79,18 +72,34 @@ ohlc_data = go.Candlestick(
     decreasing_line_color='red'
 )
 
-# Indicators (dynamic check for existence based on processed_data)
-indicator_traces = []
-# You can extend this logic to check for other indicator columns as your strategies add them
+# Indicators: detect all non-OHLCV/non-signal/non-portfolio columns generically.
+# Columns whose name starts with 'RSI' go to a separate oscillator subplot (row 2);
+# everything else overlays on the price panel (row 1).
+_OHLCV_COLS = {'Open', 'High', 'Low', 'Close', 'Volume', 'signal', 'portfolio_value'}
+price_panel_traces = []   # overlay on OHLC
+oscillator_traces = []    # separate subplot (RSI etc.)
+
+_SMA_COLORS = ['#4FC3F7', '#FF8A65', '#81C784', '#CE93D8', '#FFF176']
+_sma_color_idx = 0
+
 for col in processed_data.columns:
-    if col.startswith('SMA_'):
-        indicator_traces.append(go.Scatter(
-            x=processed_data.index, y=processed_data[col], mode='lines',
-            name=col.replace('_', ' '), line=dict(width=1),
-            # Assign different colors dynamically if desired, or hardcode for known indicators
-            line_color='blue' if 'Fast' in col else 'red' if 'Slow' in col else None,
-            hovertemplate=f'Date: %{{x}}<br>{col.replace("_", " ")}: %{{y:.2f}}<extra></extra>'
-        ))
+    if col in _OHLCV_COLS:
+        continue
+    col_upper = col.upper()
+    trace = go.Scatter(
+        x=processed_data.index, y=processed_data[col], mode='lines',
+        name=col, line=dict(width=1),
+        hovertemplate=f'Date: %{{x}}<br>{col}: %{{y:.2f}}<extra></extra>'
+    )
+    if col_upper.startswith('RSI'):
+        oscillator_traces.append(trace)
+    else:
+        # Cycle through palette for SMA / other price-panel indicators
+        trace.line.color = _SMA_COLORS[_sma_color_idx % len(_SMA_COLORS)]
+        _sma_color_idx += 1
+        price_panel_traces.append(trace)
+
+has_oscillator = bool(oscillator_traces)
 
 # BUY/SELL Signals
 buy_signals = trades_df[trades_df['type'] == 'BUY']
@@ -118,20 +127,39 @@ equity_curve_trace = go.Scatter(
 )
 
 # --- Create Plotly Figure with Subplots ---
+# Layout: OHLC (row 1) | optional oscillator like RSI (row 2) | Equity Curve (last row)
+if has_oscillator:
+    n_rows = 3
+    row_heights = [0.55, 0.2, 0.25]
+    subplot_titles = [f'OHLC & Indicators — {strategy_name}', 'Oscillators (RSI)', 'Equity Curve']
+    equity_row = 3
+else:
+    n_rows = 2
+    row_heights = [0.7, 0.3]
+    subplot_titles = [f'OHLC & Indicators — {strategy_name}', 'Equity Curve']
+    equity_row = 2
+
 fig = make_subplots(
-    rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-    row_heights=[0.7, 0.3], subplot_titles=[f'OHLC, Indicators & Trades for {strategy_name}', 'Equity Curve']
+    rows=n_rows, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+    row_heights=row_heights, subplot_titles=subplot_titles
 )
 
-# Add traces to the first subplot (OHLC, Indicators, Signals)
+# Row 1: OHLC + price-panel indicators + signals
 fig.add_trace(ohlc_data, row=1, col=1)
-for trace in indicator_traces:
+for trace in price_panel_traces:
     fig.add_trace(trace, row=1, col=1)
 fig.add_trace(buy_signal_scatter, row=1, col=1)
 fig.add_trace(sell_signal_scatter, row=1, col=1)
 
-# Add Equity Curve to the second subplot
-fig.add_trace(equity_curve_trace, row=2, col=1)
+# Row 2 (optional): oscillator indicators
+if has_oscillator:
+    for trace in oscillator_traces:
+        fig.add_trace(trace, row=2, col=1)
+    fig.add_hline(y=70, line_dash='dot', line_color='red', opacity=0.5, row=2, col=1)
+    fig.add_hline(y=30, line_dash='dot', line_color='green', opacity=0.5, row=2, col=1)
+
+# Equity Curve row
+fig.add_trace(equity_curve_trace, row=equity_row, col=1)
 
 fig.update_layout(
     title_text=f"Algorithmic Trading Backtest Results",
@@ -141,8 +169,10 @@ fig.update_layout(
 )
 fig.update_xaxes(showgrid=True, zeroline=False, row=1, col=1)
 fig.update_yaxes(title_text="Price", showgrid=True, zeroline=False, row=1, col=1)
-fig.update_xaxes(title_text="Date", showgrid=True, zeroline=False, row=2, col=1)
-fig.update_yaxes(title_text="Portfolio Value", showgrid=True, zeroline=False, row=2, col=1)
+if has_oscillator:
+    fig.update_yaxes(title_text="RSI", showgrid=True, zeroline=False, row=2, col=1)
+fig.update_xaxes(title_text="Date", showgrid=True, zeroline=False, row=equity_row, col=1)
+fig.update_yaxes(title_text="Portfolio Value", showgrid=True, zeroline=False, row=equity_row, col=1)
 
 # --- Format Performance Metrics for Display ---
 metrics_display_items = []

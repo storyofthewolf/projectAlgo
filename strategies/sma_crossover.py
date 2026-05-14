@@ -1,17 +1,8 @@
 # projectAlgo/strategies/sma_crossover.py
 
 import pandas as pd
-import sys
-import os
-
-# --- PATH SETUP ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..')
-sys.path.insert(0, project_root)
-# --- END PATH SETUP ---
-
 from strategies.base_strategy import BaseStrategy
-from analysis.technical_analysis import calculate_sma # Assuming this function exists
+from analysis.technical_analysis import calculate_sma
 
 class SMACrossoverStrategy(BaseStrategy):
     """
@@ -34,23 +25,6 @@ class SMACrossoverStrategy(BaseStrategy):
         print(f"{self.name} initialized with fast_window={self.fast_window}, slow_window={self.slow_window}")
 
 
-    def get_strategy_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Processes the input data by calculating indicators and generating signals.
-        
-        Args:
-            data (pd.DataFrame): The historical OHLCV data to process.
-        
-        Returns:
-            pd.DataFrame: The data DataFrame updated with indicators and 'signal' column.
-        """
-        self._data = data.copy() # Store a copy of the data internally
-        self.calculate_indicator() # Renamed from apply_indicator
-        self.generate_signals()
-        return self._data # Return the modified DataFrame
-
-
-    # Renamed from apply_indicator as per user's instruction (2025-06-12)
     def calculate_indicator(self):
         """
         Calculates the Simple Moving Average indicators and adds them to the data.

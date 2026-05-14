@@ -11,7 +11,9 @@ from datetime import datetime, timedelta
 # load_data_from_csv   :: Loads saved data from CSV files
 # _generate_filename   :: generates historical data file name with interval and timefram
 
-def get_historical_data(ticker: str, start_date: str = None, end_date: str = None, period: str = None, interval: str = '1d') -> pd.DataFrame:
+def get_historical_data(ticker: str, start_date: str = None, end_date: str = None,
+                        period: str = None, interval: str = '1d',
+                        source: str = 'yfinance') -> pd.DataFrame:
     """
     Downloads historical stock data for a given ticker.
 
@@ -30,6 +32,21 @@ def get_historical_data(ticker: str, start_date: str = None, end_date: str = Non
         pd.DataFrame: A DataFrame containing the historical data (Open, High, Low, Close, Volume, Dividends, Stock Splits).
                       Returns an empty DataFrame if data cannot be fetched.
     """
+
+    # Try Schwab first when requested, fall back to yfinance on failure
+    if source == 'schwab':
+        try:
+            from broker.market_data import get_historical_ohlcv
+            from broker.schwab_client import is_authenticated
+            if is_authenticated():
+                df = get_historical_ohlcv(ticker, start_date, end_date, interval)
+                if not df.empty:
+                    return df
+                print(f"Schwab returned no data for {ticker}; falling back to yfinance.")
+            else:
+                print("Schwab not authenticated; falling back to yfinance.")
+        except Exception as e:
+            print(f"Schwab fetch failed ({e}); falling back to yfinance.")
 
     print(f"Attempting to download data for {ticker}...")
     data = pd.DataFrame()
@@ -162,7 +179,8 @@ def load_data_from_csv(ticker: str, directory: str, interval: str, start_date: s
         return pd.DataFrame()
     
     try:
-        df = pd.read_csv(file_path, index_col='Date', parse_dates=True)
+        df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+        df.index.name = 'Date'
         print(f"Successfully loaded {len(df)} rows for {ticker} (interval: {interval}, dates: {start_date} to {end_date}) from {file_path}")
         return df
     except Exception as e:
