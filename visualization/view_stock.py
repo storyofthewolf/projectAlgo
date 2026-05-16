@@ -6,23 +6,20 @@
 
 import argparse
 import os
+from datetime import datetime
+
 from dash import Dash, html, dcc, Input, Output
 import plotly.graph_objects as go
 import pandas as pd
-from datetime import datetime
 
-from core.financial_objects import Stock
+from marketdata.service import get_data_service
 
-# --- Resolve data directory from CLI arg or default ---
+# --data-dir is accepted but unused; DataService reads its cache dir from cockpit.toml.
 _parser = argparse.ArgumentParser(add_help=False)
 _parser.add_argument('--data-dir', default=None,
-                     help="Directory for cached historical data. Default: data/historical_data under project root.")
+                     help="Unused; data directory is read from cockpit.toml.")
 _args, _ = _parser.parse_known_args()
 
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-DATA_DIR = _args.data_dir or os.path.join(_project_root, 'data', 'historical_data')
-
-# --- Initialize the Dash app ---
 app = Dash(__name__)
 
 DEFAULT_TICKER = "AAPL"
@@ -30,20 +27,17 @@ DEFAULT_INTERVAL = "1d"
 DEFAULT_START_DATE = (datetime.now() - pd.DateOffset(years=1)).strftime('%Y-%m-%d')
 DEFAULT_END_DATE = datetime.now().strftime('%Y-%m-%d')
 
-
-# --- Define the layout of your application ---
 app.layout = html.Div(children=[
     html.H1(children='Interactive Stock Dashboard'),
 
-    # Input controls
     html.Div([
         html.Label('Ticker Symbol:'),
         dcc.Input(
             id='ticker-input',
             type='text',
-            value=DEFAULT_TICKER, # Set default value
-            debounce=True, # Wait for user to finish typing
-            style={'marginRight':'10px'}
+            value=DEFAULT_TICKER,
+            debounce=True,
+            style={'marginRight': '10px'}
         ),
         html.Label('Interval:'),
         dcc.Dropdown(
@@ -51,11 +45,10 @@ app.layout = html.Div(children=[
             options=[
                 {'label': '1 Day', 'value': '1d'},
                 {'label': '1 Week', 'value': '1wk'},
-                {'label': '1 Month', 'value': '1mo'}
-                # You can add more intervals if supported by yfinance and your Stock class
+                {'label': '1 Month', 'value': '1mo'},
             ],
-            value=DEFAULT_INTERVAL, # Set default value
-            style={'width': '120px', 'display': 'inline-block', 'marginRight':'10px'}
+            value=DEFAULT_INTERVAL,
+            style={'width': '120px', 'display': 'inline-block', 'marginRight': '10px'}
         ),
         html.Label('Date Range:'),
         dcc.DatePickerRange(
@@ -67,56 +60,41 @@ app.layout = html.Div(children=[
         ),
     ], style={'padding': '20px', 'borderBottom': '1px solid #ccc'}),
 
-    # Graph component - initially empty, will be updated by callback
     dcc.Graph(
         id='candlestick-chart',
-        figure={} # Start with an empty figure
+        figure={}
     )
 ])
 
 
-# --- Define the Callback ---
 @app.callback(
-    Output('candlestick-chart', 'figure'), # Output: The 'figure' property of the 'candlestick-chart' component
+    Output('candlestick-chart', 'figure'),
     [
-        Input('ticker-input', 'value'),     # Input 1: The 'value' property of 'ticker-input'
-        Input('interval-dropdown', 'value'),# Input 2: The 'value' property of 'interval-dropdown'
-        Input('date-range-picker', 'start_date'), # Input 3: The 'start_date' property of 'date-range-picker'
-        Input('date-range-picker', 'end_date')  # Input 4: The 'end_date' property of 'date-range-picker'
+        Input('ticker-input', 'value'),
+        Input('interval-dropdown', 'value'),
+        Input('date-range-picker', 'start_date'),
+        Input('date-range-picker', 'end_date'),
     ]
 )
 def update_candlestick_chart(ticker, interval, start_date, end_date):
-    """
-    This function is automatically called by Dash whenever any of its Input properties change.
-    It takes the new input values, loads/downloads stock data, and returns a new Plotly figure.
-    """
     if not all([ticker, interval, start_date, end_date]):
-        # Return an empty figure if any input is missing (e.g., on initial load before values propagate)
         return {}
 
     print(f"Updating chart for {ticker} from {start_date} to {end_date} ({interval})...")
 
-    stock_data = Stock(ticker)
-
     try:
-        stock_data.load_local_data(start_date, end_date, interval, data_dir=DATA_DIR)
-        if stock_data.historical_data.empty:
-            print(f"No local data found for {ticker}. Attempting to download...")
-            stock_data.download_data(start_date, end_date, interval, data_dir=DATA_DIR)
-            if stock_data.historical_data.empty:
-                print(f"Error: Could not retrieve data for {ticker}. Please check inputs.")
-                return go.Figure()
+        service = get_data_service()
+        start = datetime.strptime(start_date[:10], '%Y-%m-%d').date()
+        end = datetime.strptime(end_date[:10], '%Y-%m-%d').date()
+        df = service.get_historical_ohlcv(ticker, start, end, interval=interval)
     except Exception as e:
-        print(f"An error occurred during data loading/download: {e}")
+        print(f"An error occurred during data loading: {e}")
         return go.Figure()
 
-    df = stock_data.historical_data.copy()
-
-    if df.empty:
+    if df is None or df.empty:
         print(f"DataFrame is empty for {ticker} after data retrieval.")
-        return go.Figure() # Return empty figure if no data
+        return go.Figure()
 
-    # Create the Candlestick Figure
     fig = go.Figure(data=[go.Candlestick(
         x=df.index,
         open=df['Open'],
@@ -125,17 +103,15 @@ def update_candlestick_chart(ticker, interval, start_date, end_date):
         close=df['Close']
     )])
 
-    # Update layout for better appearance
     fig.update_layout(
         title=f'{ticker} Candlestick Chart ({interval})',
         yaxis_title='Price',
         xaxis_rangeslider_visible=False,
-        template='plotly_dark' # Optional: a dark theme for the chart
+        template='plotly_dark'
     )
 
-    return fig # Return the created figure to update the dcc.Graph component
+    return fig
 
 
-# --- Run the app ---
 if __name__ == '__main__':
     app.run(debug=True)

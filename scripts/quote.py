@@ -1,5 +1,5 @@
 # projectAlgo/scripts/quote.py
-# Fetch live quotes for one or more tickers from Schwab.
+# Fetch live quotes for one or more tickers.
 #
 # Usage:
 #   python -m scripts.quote AAPL
@@ -7,7 +7,7 @@
 
 import argparse
 from broker.schwab_client import is_authenticated
-from broker.market_data import get_live_quotes
+from marketdata.service import get_data_service
 
 
 def main():
@@ -22,21 +22,24 @@ def main():
         )
 
     tickers = [t.upper() for t in args.tickers]
-    df = get_live_quotes(tickers)
+    service = get_data_service()
+    quotes = service.get_live_quotes(tickers, source='schwab')
 
-    if df.empty:
+    if not quotes:
         raise SystemExit("No quote data returned.")
 
     print()
     header = f"  {'TICKER':<8} {'LAST':>10} {'BID':>10} {'ASK':>10} {'VOLUME':>12} {'CHANGE':>10} {'CHG %':>8}"
     print(header)
     print("  " + "-" * (len(header) - 2))
-    for _, row in df.iterrows():
-        chg_str = f"{row['change']:>+.2f}"
-        pct_str = f"{row['change_pct']:>+.2f}%"
+    for ticker, q in quotes.items():
+        change = q.change or 0.0
+        change_pct = (q.change_pct or 0.0) * 100
+        chg_str = f"{change:>+.2f}"
+        pct_str = f"{change_pct:>+.2f}%"
         print(
-            f"  {row['ticker']:<8} {row['last_price']:>10.2f} {row['bid']:>10.2f} "
-            f"{row['ask']:>10.2f} {int(row['volume']):>12,} {chg_str:>10} {pct_str:>8}"
+            f"  {q.ticker:<8} {q.price:>10.2f} {q.bid or 0.0:>10.2f} "
+            f"{q.ask or 0.0:>10.2f} {q.volume or 0:>12,} {chg_str:>10} {pct_str:>8}"
         )
     print()
 

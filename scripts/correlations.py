@@ -8,7 +8,6 @@
 #   python -m scripts.correlations -t AAPL MSFT SPY --source schwab --interval 1wk
 
 import argparse
-import os
 from datetime import datetime
 
 from analysis.market_analysis import (
@@ -37,8 +36,6 @@ def parse_args():
     parser.add_argument('--source', default='yfinance',
                         choices=['yfinance', 'schwab'],
                         help="Data source (default: yfinance)")
-    parser.add_argument('--data-dir', default=None,
-                        help="Historical data cache directory")
     parser.add_argument('--plot', action='store_true',
                         help="Open an interactive heatmap in the browser")
     parser.add_argument('--pairs', action='store_true',
@@ -97,9 +94,6 @@ def main():
     if len(tickers) < 2:
         raise SystemExit("At least 2 tickers required.")
 
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    data_dir = args.data_dir or os.path.join(project_root, 'data', 'historical_data')
-
     print(f"\nLoading returns for: {' '.join(tickers)}")
     print(f"Period: {args.start} → {args.end}  |  interval={args.interval}"
           f"  |  method={args.method}  |  source={args.source}\n")
@@ -109,7 +103,6 @@ def main():
         start_date=args.start,
         end_date=args.end,
         interval=args.interval,
-        data_dir=data_dir,
         source=args.source,
     )
 

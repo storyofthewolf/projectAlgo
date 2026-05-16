@@ -7,3 +7,5 @@ plotly
 pandas-ta
 schwab-py
 python-dotenv
+tomli>=2.0
+textual>=0.80

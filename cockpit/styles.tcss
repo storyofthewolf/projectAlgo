@@ -1,0 +1,174 @@
+/* projectAlgo cockpit — Textual stylesheet */
+
+Screen {
+    background: $background;
+    color: $text-primary;
+    layers: base overlay;
+}
+
+/* ── Layout ──────────────────────────────────────────────── */
+
+#clock-header {
+    height: 1;
+    background: $surface;
+    color: $primary;
+    text-style: bold;
+    dock: top;
+}
+
+#command-footer {
+    height: 1;
+    background: $surface;
+    color: $text-dim;
+    dock: bottom;
+}
+
+#top-row {
+    height: 12;
+}
+
+#panel-account {
+    width: 28;
+    min-width: 24;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#panel-pulse {
+    width: 1fr;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#panel-watchlist {
+    height: auto;
+    min-height: 10;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#bottom-row {
+    height: 1fr;
+}
+
+#panel-sectors {
+    width: 36;
+    min-width: 28;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#panel-corr {
+    width: 1fr;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+/* ── PanelFrame ──────────────────────────────────────────── */
+
+PanelFrame {
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+    padding: 0 1;
+}
+
+/* ── PriceCell / PctCell ─────────────────────────────────── */
+
+PriceCell {
+    color: $text-primary;
+}
+
+PriceCell.flash-up {
+    background: $flash-up-bg;
+    color: $flash-text;
+}
+
+PriceCell.flash-down {
+    background: $flash-down-bg;
+    color: $flash-text;
+}
+
+PriceCell.directional-up {
+    color: $positive;
+}
+
+PriceCell.directional-down {
+    color: $negative;
+}
+
+PctCell {
+    color: $text-primary;
+}
+
+PctCell.flash-up {
+    background: $flash-up-bg;
+    color: $flash-text;
+}
+
+PctCell.flash-down {
+    background: $flash-down-bg;
+    color: $flash-text;
+}
+
+PctCell.directional-up {
+    color: $positive;
+}
+
+PctCell.directional-down {
+    color: $negative;
+}
+
+/* ── Help screen ─────────────────────────────────────────── */
+
+HelpScreen {
+    align: center middle;
+}
+
+HelpScreen PanelFrame {
+    width: 72;
+    height: auto;
+    border: round $border;
+    border-title-color: $primary;
+    border-title-style: bold;
+    padding: 0 1;
+}
+
+HelpScreen Static {
+    color: $secondary;
+}
+
+HelpScreen CommandFooter {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $text-dim;
+}
+
+/* ── Account panel placeholder ───────────────────────────── */
+
+#account-content {
+    color: $text-dim;
+}
+
+/* ── Resize warning (shown via CSS class on Screen) ─────── */
+
+#resize-warning {
+    display: none;
+    layer: overlay;
+    width: 100%;
+    height: 100%;
+    background: $negative;
+    color: $flash-text;
+    align: center middle;
+    text-style: bold;
+}
+
+Screen.too-small #resize-warning {
+    display: block;
+}

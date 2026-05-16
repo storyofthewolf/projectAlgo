@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from core.financial_objects import Transaction
+from core.transaction import Transaction
 from math import floor
 from strategies.base_strategy import BaseStrategy
 

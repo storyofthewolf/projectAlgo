@@ -1,0 +1,17 @@
+# projectAlgo cockpit configuration
+
+[data]
+# Preferred source for market data. Options: "schwab", "yfinance".
+# Set to "yfinance" until Schwab OAuth is configured; flip to "schwab" after.
+preferred_source = "yfinance"
+data_dir = "data/historical_data"
+backtest_results_dir = "data/backtest_results"
+
+[refresh]
+interval_seconds = 30
+
+[theme]
+default = "claude-warm"
+
+[logging]
+level = "INFO"

@@ -4,12 +4,11 @@
 
 import pandas as pd
 import numpy as np
-import os
+from datetime import datetime
 
 
 def load_aligned_returns(tickers: list, start_date: str, end_date: str,
-                          interval: str = '1d', data_dir: str = None,
-                          source: str = 'yfinance',
+                          interval: str = '1d', source: str = 'yfinance',
                           price_col: str = 'Close') -> pd.DataFrame:
     """
     Loads historical data for each ticker, aligns on common trading days,
@@ -23,7 +22,6 @@ def load_aligned_returns(tickers: list, start_date: str, end_date: str,
         start_date: 'YYYY-MM-DD'
         end_date:   'YYYY-MM-DD'
         interval:   Data interval ('1d', '1wk', etc.).
-        data_dir:   Absolute path to historical data cache directory.
         source:     'yfinance' or 'schwab'.
         price_col:  Column to use for return calculation. Default 'Close'.
 
@@ -31,31 +29,32 @@ def load_aligned_returns(tickers: list, start_date: str, end_date: str,
         DataFrame with DatetimeIndex and one column per ticker of period returns.
         Tickers that could not be loaded are omitted with a warning.
     """
-    from core.financial_objects import Stock
+    from marketdata.service import get_data_service
 
-    if data_dir is None:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        data_dir = os.path.join(project_root, 'data', 'historical_data')
+    start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end = datetime.strptime(end_date, '%Y-%m-%d').date()
+    service = get_data_service()
 
     price_series = {}
     for ticker in tickers:
-        stock = Stock(ticker)
-        loaded = stock.load_local_data(start_date, end_date, interval, data_dir=data_dir)
-        if not loaded or stock.historical_data.empty:
-            stock.download_data(start_date, end_date, interval,
-                                data_dir=data_dir, source=source)
-        if stock.historical_data.empty:
-            print(f"Warning: no data for {ticker} — skipping.")
+        try:
+            df = service.get_historical_ohlcv(
+                ticker, start, end, interval=interval, source=source
+            )
+            if df.empty:
+                print(f"Warning: no data for {ticker} — skipping.")
+                continue
+            if price_col not in df.columns:
+                print(f"Warning: '{price_col}' column missing for {ticker} — skipping.")
+                continue
+            price_series[ticker] = df[price_col]
+        except Exception as e:
+            print(f"Warning: could not load {ticker} — skipping. ({e})")
             continue
-        if price_col not in stock.historical_data.columns:
-            print(f"Warning: '{price_col}' column missing for {ticker} — skipping.")
-            continue
-        price_series[ticker] = stock.historical_data[price_col]
 
     if not price_series:
         return pd.DataFrame()
 
-    # Align on common index: outer join, forward-fill gaps, then inner-join (drop any remaining NaN)
     prices = pd.DataFrame(price_series)
     prices = prices.ffill().dropna()
 
