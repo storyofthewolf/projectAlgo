@@ -4,21 +4,43 @@ from cockpit.format import fmt_price
 
 
 class PriceCell(Static):
-    """A price cell that flashes on update then settles to directional color."""
+    """A price cell that flashes on update then settles to directional color.
+
+    format_func: callable(float | None) -> str, defaults to fmt_price.
+    Supports yield ("4.482%") and index ("16.42") formats via PulseCell.
+    """
 
     value: reactive[float | None] = reactive(None)
 
-    def __init__(self, value: float | None = None, **kwargs):
+    def __init__(
+        self,
+        value: float | None = None,
+        format_func=None,
+        **kwargs,
+    ):
         self._previous: float | None = None
-        super().__init__(fmt_price(value), **kwargs)
+        self._format_func = format_func if format_func is not None else fmt_price
+        super().__init__(self._format_func(value), **kwargs)
         self.value = value
 
     def watch_value(self, new: float | None) -> None:
-        self.update(fmt_price(new))
+        self.update(self._format_func(new))
 
     def update_price(self, new_value: float) -> None:
-        """Update displayed value with flash animation."""
-        direction = "up" if (self._previous is None or new_value >= self._previous) else "down"
+        """Update displayed value; flash only when value changed from a known previous.
+
+        First call: sets baseline without flashing (first-flash fix — AC 17).
+        Subsequent calls: flash only when value differs by more than 1e-6.
+        """
+        if self._previous is None:
+            self._previous = new_value
+            self.value = new_value
+            return
+
+        if abs(new_value - self._previous) < 1e-6:
+            return
+
+        direction = "up" if new_value >= self._previous else "down"
         self._previous = new_value
         self.value = new_value
 

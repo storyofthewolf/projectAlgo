@@ -4,7 +4,10 @@ from cockpit.format import fmt_pct
 
 
 class PctCell(Static):
-    """A percentage cell that flashes on update then settles to directional color."""
+    """A percentage cell that flashes on update then settles to directional color.
+
+    Flash direction is based on sign of the value (positive = up = green).
+    """
 
     value: reactive[float | None] = reactive(None)
 
@@ -17,7 +20,18 @@ class PctCell(Static):
         self.update(fmt_pct(new))
 
     def update_pct(self, new_value: float) -> None:
-        """Update displayed value with flash animation."""
+        """Update displayed value; flash only when value changed from a known previous.
+
+        First call: sets baseline without flashing (first-flash fix — AC 17).
+        """
+        if self._previous is None:
+            self._previous = new_value
+            self.value = new_value
+            return
+
+        if abs(new_value - self._previous) < 1e-6:
+            return
+
         direction = "up" if new_value >= 0 else "down"
         self._previous = new_value
         self.value = new_value

@@ -1,0 +1,10 @@
+# watchlists.yaml — projectAlgo watchlist definitions
+# Edit freely; reloaded on cockpit 'r' refresh.
+
+default: default
+
+lists:
+  default:
+    - SPY
+    - AAPL
+    - NVDA

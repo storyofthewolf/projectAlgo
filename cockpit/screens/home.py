@@ -1,62 +1,32 @@
+from textual import work
 from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static
 from textual.containers import Horizontal, Vertical
 
 from cockpit import mock_data as md
 from cockpit.format import (
-    fmt_price, fmt_pct, fmt_change, fmt_volume, fmt_arrow,
-    fmt_yield, fmt_ticker, make_sparkline, make_sector_bar, fmt_corr,
+    fmt_pct, fmt_arrow, fmt_ticker,
+    fmt_yield, make_sparkline, fmt_corr,
 )
 from cockpit.themes import THEMES_CONFIG
 from cockpit.widgets.panel_frame import PanelFrame
 from cockpit.widgets.clock_header import ClockHeader
 from cockpit.widgets.command_footer import CommandFooter
+from cockpit.widgets.watchlist_panel import WatchlistPanel
+from cockpit.widgets.market_pulse_panel import MarketPulsePanel
+from cockpit.widgets.sector_panel import SectorPanel
+from cockpit.screens.sectors import SectorDeepDiveScreen
+from workflows.watchlist_snapshot import WatchlistSnapshot, build_watchlist_snapshot
+from workflows.market_pulse_snapshot import PulseSnapshot, build_pulse_snapshot
+from workflows.sector_snapshot import SectorSnapshot, build_sector_snapshot
 
-_COMMANDS = [("Q", "QUIT"), ("R", "REFRESH"), ("?", "HELP"), ("T", "THEME"), ("TAB", "NAV")]
-
-
-def _render_market_pulse(pulse: list[tuple]) -> str:
-    lines = []
-    for ticker, last, chg_pct, spark, fmt in pulse:
-        t = fmt_ticker(ticker)
-        if fmt == "yield":
-            price_str = fmt_yield(last)
-        else:
-            price_str = fmt_price(last)
-        pct_str = fmt_pct(chg_pct)
-        arrow = fmt_arrow(chg_pct)
-        spark_str = make_sparkline(spark, 10)
-        lines.append(f" {t:<6} {price_str:>8}  {pct_str:>8} {arrow}   {spark_str}")
-    return "\n".join(lines)
-
-
-def _render_watchlist(holdings: list[tuple]) -> str:
-    header = (
-        f" {'TICKER':<7} {'LAST':>8}  {'CHG':>7}  {'CHG%':>8}  "
-        f"{'VOL':>7}  {'5D':>6}  {'30D':>7}  {'SPARK':<12}  {'RSI':>4}"
-    )
-    sep = " " + "─" * (len(header) - 1)
-    rows = [header, sep]
-    for ticker, last, chg, chg_pct, vol, c5d, c30d, spark, rsi in holdings:
-        t = fmt_ticker(ticker)
-        spark_str = make_sparkline(spark, 8)
-        rows.append(
-            f" {t:<7} {fmt_price(last):>8}  {fmt_change(chg):>7}  {fmt_pct(chg_pct):>8}  "
-            f"{fmt_volume(vol):>7}  {fmt_pct(c5d):>6}  {fmt_pct(c30d):>7}  "
-            f"{spark_str:<12}  {rsi:>4}"
-        )
-    return "\n".join(rows)
-
-
-def _render_sectors(sectors: list[tuple], pos_color: str = "#87a96b", neg_color: str = "#c75450") -> str:
-    lines = []
-    for etf, name, chg_pct in sectors:
-        bar = make_sector_bar(chg_pct)
-        pct_str = fmt_pct(chg_pct)
-        color = pos_color if chg_pct >= 0 else neg_color
-        lines.append(f" {etf:<5} {name:<10} [{color}]{pct_str:>8} {bar}[/{color}]")
-    return "\n".join(lines)
+_COMMANDS = [
+    ("Q", "QUIT"), ("R", "REFRESH"), ("W", "WATCHLIST"),
+    ("S", "SECTORS"), ("?", "HELP"), ("T", "THEME"), ("TAB", "NAV"),
+]
 
 
 def _corr_color(v: float, cfg: dict) -> str:
@@ -92,7 +62,22 @@ def _render_correlations(
 
 
 class HomeScreen(Screen):
-    """Main home screen with all five panels."""
+    """Main home screen — watchlist + pulse + sectors wired to real data; corr still mock."""
+
+    BINDINGS = [
+        Binding("s", "open_sector_deep_dive", "Sectors", show=True),
+    ]
+
+    # Watchlist state
+    active_provider: reactive[str] = reactive('yaml')
+    active_watchlist: reactive[str] = reactive('default')
+    snapshot: reactive[WatchlistSnapshot | None] = reactive(None)
+
+    # Pulse state
+    pulse_snapshot: reactive[PulseSnapshot | None] = reactive(None)
+
+    # Sector state
+    sector_snapshot: reactive[SectorSnapshot | None] = reactive(None)
 
     def _theme_cfg(self) -> dict:
         theme = self.app.theme if self.app.theme in THEMES_CONFIG else "claude-warm"
@@ -100,9 +85,8 @@ class HomeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         data = md.regenerate_mock()
-        self._current_data = data
+        self._current_mock = data
         cfg = self._theme_cfg()
-        pos, neg = cfg["positive"], cfg["negative"]
 
         yield ClockHeader(id="clock-header")
 
@@ -118,23 +102,17 @@ class HomeScreen(Screen):
                     id="account-content",
                 )
             with PanelFrame("MARKET PULSE", id="panel-pulse"):
-                yield Static(
-                    _render_market_pulse(data["pulse"]),
-                    id="pulse-content",
+                yield MarketPulsePanel(
+                    pulse_configs=self.app.settings.pulse_tickers,
+                    id="pulse-widget",
                 )
 
-        with PanelFrame("WATCHLIST: HOLDINGS", id="panel-watchlist"):
-            yield Static(
-                _render_watchlist(data["holdings"]),
-                id="watchlist-content",
-            )
+        with PanelFrame("WATCHLIST", id="panel-watchlist"):
+            yield WatchlistPanel(id="watchlist-widget")
 
         with Horizontal(id="bottom-row"):
             with PanelFrame("SECTOR HEATMAP", id="panel-sectors"):
-                yield Static(
-                    _render_sectors(data["sectors"], pos, neg),
-                    id="sectors-content",
-                )
+                yield SectorPanel(id="sectors-panel")
             with PanelFrame("CORRELATIONS (30D, HOLDINGS)", id="panel-corr"):
                 yield Static(
                     _render_correlations(md.WATCHLIST_TICKERS, data["corr"], cfg),
@@ -147,22 +125,148 @@ class HomeScreen(Screen):
             id="resize-warning",
         )
 
-    def refresh_mock(self) -> None:
-        """Regenerate mock data and update all panel contents."""
-        data = md.regenerate_mock()
-        self._current_data = data
-        cfg = self._theme_cfg()
-        pos, neg = cfg["positive"], cfg["negative"]
+    def on_mount(self) -> None:
+        # Sync active watchlist from registry default
+        registry = self.app.watchlist_registry
+        order = registry.cycle_order()
+        if order:
+            self.active_provider, self.active_watchlist = order[0]
 
-        self.query_one("#pulse-content", Static).update(
-            _render_market_pulse(data["pulse"])
+        interval = self.app.settings.refresh_interval_seconds
+
+        # Watchlist: initial fetch + polling
+        self.refresh_watchlist()
+        self.set_interval(interval, self.refresh_watchlist)
+
+        # Pulse: initial fetch + polling (independent timer)
+        self.refresh_pulse()
+        self.set_interval(interval, self.refresh_pulse)
+
+        # Sectors: initial fetch + polling (independent timer, longer interval)
+        self.refresh_sectors()
+        self.set_interval(
+            self.app.settings.sector_config.refresh_interval_seconds,
+            self.refresh_sectors,
         )
-        self.query_one("#watchlist-content", Static).update(
-            _render_watchlist(data["holdings"])
-        )
-        self.query_one("#sectors-content", Static).update(
-            _render_sectors(data["sectors"], pos, neg)
-        )
+
+    # ── Watchlist worker ──────────────────────────────────────────────────
+
+    @work(exclusive=True, thread=True)
+    def refresh_watchlist(self) -> None:
+        """Fetch watchlist snapshot in a thread so network I/O doesn't block UI."""
+        registry = self.app.watchlist_registry
+        provider = self.active_provider
+        watchlist = self.active_watchlist
+
+        try:
+            tickers = registry.get_tickers(provider, watchlist)
+        except KeyError:
+            order = registry.cycle_order()
+            if not order:
+                return
+            provider, watchlist = order[0]
+            tickers = registry.get_tickers(provider, watchlist)
+            self.app.call_from_thread(self._set_active, provider, watchlist)
+
+        snap = build_watchlist_snapshot(provider, watchlist, tickers)
+        self.app.call_from_thread(self._set_snapshot, snap)
+
+    def _set_active(self, provider: str, watchlist: str) -> None:
+        self.active_provider = provider
+        self.active_watchlist = watchlist
+
+    def _set_snapshot(self, snapshot: WatchlistSnapshot) -> None:
+        self.snapshot = snapshot
+
+    def watch_snapshot(
+        self,
+        old: WatchlistSnapshot | None,
+        new: WatchlistSnapshot | None,
+    ) -> None:
+        if new is None:
+            return
+        self.query_one(WatchlistPanel).update_from_snapshot(new)
+
+    # ── Pulse worker ──────────────────────────────────────────────────────
+
+    @work(exclusive=True, thread=True)
+    def refresh_pulse(self) -> None:
+        """Fetch pulse snapshot in a thread, independent of the watchlist worker."""
+        snap = build_pulse_snapshot(self.app.settings.pulse_tickers)
+        self.app.call_from_thread(self._set_pulse_snapshot, snap)
+
+    def _set_pulse_snapshot(self, snapshot: PulseSnapshot) -> None:
+        self.pulse_snapshot = snapshot
+
+    def watch_pulse_snapshot(
+        self,
+        old: PulseSnapshot | None,
+        new: PulseSnapshot | None,
+    ) -> None:
+        if new is None:
+            return
+        self.query_one(MarketPulsePanel).update_snapshot(new)
+
+    # ── Sector worker ─────────────────────────────────────────────────────
+
+    @work(exclusive=True, group="sectors", thread=True)
+    def refresh_sectors(self) -> None:
+        """Fetch sector snapshot in a thread, independent of other workers."""
+        snap = build_sector_snapshot(self.app.settings.sector_config)
+        self.app.call_from_thread(self._set_sector_snapshot, snap)
+
+    def _set_sector_snapshot(self, snapshot: SectorSnapshot) -> None:
+        self.sector_snapshot = snapshot
+
+    def watch_sector_snapshot(
+        self,
+        old: SectorSnapshot | None,
+        new: SectorSnapshot | None,
+    ) -> None:
+        if new is None:
+            return
+        self.query_one("#sectors-panel", SectorPanel).update_snapshot(new)
+
+    # ── Refresh (r key) ───────────────────────────────────────────────────
+
+    def action_refresh(self) -> None:
+        """Full refresh: reload YAML config, re-fetch watchlist + pulse + sector data."""
+        self.app.watchlist_registry.reload_all()
+        self._refresh_mock_panels()
+        self.refresh_watchlist()
+        self.refresh_pulse()
+        self.refresh_sectors()
+
+    def refresh_mock(self) -> None:
+        self.action_refresh()
+
+    def _refresh_mock_panels(self) -> None:
+        """Refresh panels still on mock data (correlations only; sectors wired to real data)."""
+        data = md.regenerate_mock()
+        self._current_mock = data
+        cfg = self._theme_cfg()
         self.query_one("#corr-content", Static).update(
             _render_correlations(md.WATCHLIST_TICKERS, data["corr"], cfg)
         )
+
+    # ── Sector deep-dive (s key) ─────────────────────────────────────────
+
+    def action_open_sector_deep_dive(self) -> None:
+        """Push the sector deep-dive screen."""
+        self.app.push_screen(SectorDeepDiveScreen())
+
+    # ── Cycle watchlist (w key) ───────────────────────────────────────────
+
+    def action_cycle_watchlist(self) -> None:
+        """Cycle to the next (provider, watchlist) pair."""
+        order = self.app.watchlist_registry.cycle_order()
+        if not order:
+            return
+        current = (self.active_provider, self.active_watchlist)
+        try:
+            idx = list(order).index(current)
+            next_idx = (idx + 1) % len(order)
+        except ValueError:
+            next_idx = 0
+        self.active_provider, self.active_watchlist = order[next_idx]
+        self.refresh_watchlist()

@@ -11,15 +11,30 @@ _HELP_TEXT = """\
 
   GLOBAL
     Q              QUIT
-    R              REFRESH SCREEN
+    R              REFRESH DATA + RELOAD CONFIG
     ?              SHOW THIS HELP
     T              CYCLE THEME
     ESC            BACK TO PREVIOUS SCREEN
     TAB / SHIFT+TAB   FOCUS NEXT / PREVIOUS PANEL
 
   HOME SCREEN
-    (additional bindings reserved for future sessions:
-     A=ACCOUNT  S=SECTORS  C=CORRELATIONS  W=WATCHLISTS  /=FIND)
+    S              SECTOR DEEP-DIVE (multi-timeframe RS table)
+    W              CYCLE WATCHLIST
+
+  WATCHLIST PANEL (when focused)
+    J / DOWN       SCROLL DOWN
+    K / UP         SCROLL UP
+    G              JUMP TO TOP
+    SHIFT+G        JUMP TO BOTTOM
+
+  SECTOR DEEP-DIVE SCREEN (s → enters, Esc → exits)
+    ← →            MOVE COLUMN FOCUS
+    ENTER          SORT BY FOCUSED COLUMN (toggle asc/desc if already sorted)
+    R              REFRESH DATA
+    ESC            BACK TO HOME
+
+  RESERVED (future sessions)
+    A=ACCOUNT  C=CORRELATIONS  /=FIND TICKER
 
 """
 

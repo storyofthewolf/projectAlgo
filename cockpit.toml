@@ -15,3 +15,47 @@ default = "claude-warm"
 
 [logging]
 level = "INFO"
+
+[sector_deep_dive]
+# Sector deep-dive screen (entered via 's' from home, exit via Esc).
+# Refresh cadence is faster than the home sector panel because this screen
+# is sized for the eventual addition of intraday breadth/indicator data;
+# the current RS-only content will simply re-fetch identical daily bars.
+refresh_interval_seconds = 60
+
+# Sort column at screen entry. Must match one of the timeframe labels below.
+default_sort_column = "1M"
+# "asc" or "desc"
+default_sort_direction = "desc"
+
+# Timeframes shown as columns in the deep-dive table, left to right.
+# Each entry needs `label` plus exactly ONE of: trading_days, calendar.
+#
+#   trading_days = N    fixed lookback of N trading days (NOT calendar days)
+#   calendar     = "ytd" calendar-anchored: from Jan 1 of current year to today
+#
+# Allowed: 2 to 6 entries.
+timeframes = [
+    { label = "5D",  trading_days = 5 },
+    { label = "1M",  trading_days = 21 },
+    { label = "3M",  trading_days = 63 },
+    { label = "YTD", calendar = "ytd" },
+]
+
+[sectors]
+lookback_days = 20
+comparison_ticker = "SPY"
+intensity_max_pct = 5.0
+refresh_interval_seconds = 300
+
+[pulse]
+tickers = [
+    { symbol = "SPY",      label = "S&P 500",    format = "price" },
+    { symbol = "QQQ",      label = "NASDAQ",      format = "price" },
+    { symbol = "IWM",      label = "Russell 2K",  format = "price" },
+    { symbol = "^VIX",     label = "VIX",         format = "index" },
+    { symbol = "^TNX",     label = "10Y Yield",   format = "yield" },
+    { symbol = "DX-Y.NYB", label = "Dollar",      format = "index" },
+    { symbol = "CL=F",     label = "Oil",         format = "price" },
+    { symbol = "GC=F",     label = "Gold",        format = "price" },
+]

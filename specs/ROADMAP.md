@@ -103,48 +103,77 @@ A multi-session build, each session bounded to fit comfortably in one Claude Cod
 - `pandas-ta`: no 3.14 wheel yet; not actually used in codebase, safe to remove from `requirements.txt` in a future cleanup
 - `schwab-py`: no 3.14 wheel yet; relevant for when Schwab wiring happens — re-check at that time, or consider using `httpx` directly
 
-### Session 3 — Watchlist real-data wiring — **NEXT**
+### Session 3 — Watchlist real-data wiring — **✅ DONE**
 
-**Goal:** Wire the watchlist panel to real data via DataService. This proves the end-to-end data pattern that all later panels will replicate.
+**Built:**
+- `watchlists.yaml` at project root with multi-watchlist support
+- `cockpit/watchlists.py` — YAML loader and validator
+- `workflows/watchlist_snapshot.py` — first concrete Workflow layer code
+- Watchlist panel wired to live yfinance quotes via `DataService`
+- Auto-refresh polling (configurable via `cockpit.toml`)
+- Hot-reload of `watchlists.yaml` on `r`
+- Multi-watchlist cycling on `w`
+
+**Pattern established:** workflow returns typed snapshot → reactive on HomeScreen → independent `@work` worker on its own `set_interval` timer → pure-renderer panel widget. This is the load-bearing template for Sessions 4-7.
+
+### Session 4 — Market pulse real-data wiring — **✅ DONE**
+
+**Built:**
+- `workflows/market_pulse_snapshot.py` — `PulseSnapshot` and `PulseTicker` data carriers, `build_pulse_snapshot()` function
+- `cockpit/widgets/market_pulse_panel.py` — `MarketPulsePanel` + `PulseCell` with 4×2 grid layout
+- `[pulse]` section in `cockpit.toml` with 8 configurable tickers (SPY, QQQ, IWM, VIX, 10Y, DXY, CL, GC)
+- Three display format types: `price` (with $), `index` (no $), `yield` (% with 3 decimals)
+- 30-day sparklines from cached historical data; quotes polled live every 30s
+- Independent polling cadence from watchlist; both timers run separately
+
+**Side findings:**
+- First-flash bug in `PriceCell`/`PctCell` — fixed (was flashing every widget green on first load regardless of actual direction)
+- Special yfinance symbols (`^VIX`, `^TNX`, `DX-Y.NYB`, `CL=F`, `GC=F`) all work via `fast_info` without modification
+- Pattern proves out: two independent panels now use the same workflow→reactive→worker→renderer template
+
+**Verified:** 21 of 21 acceptance criteria pass.
+
+### Session 5 — Sector heatmap (home panel only) — **NEXT**
+
+**Goal:** Wire the sector heatmap panel to real data using the same pattern proven in Sessions 3 and 4, plus introduce continuous-gradient color machinery.
 
 **Scope:**
-- `watchlists.yaml` at project root — hand-edited, defines named watchlist groups
-- `cockpit/watchlists.py` — loads + validates YAML
-- `workflows/watchlist_snapshot.py` — first concrete Workflow layer code; fetches quotes for tickers, returns typed `WatchlistSnapshot`
-- Wire `HomeScreen` watchlist panel to call the workflow
-- Auto-refresh polling loop (every `refresh.interval_seconds` from `cockpit.toml`)
-- Hot-reload of `watchlists.yaml` when `r` is pressed
-- Multi-watchlist support: cycle between named lists with `w`
+- `workflows/sector_snapshot.py` — `SectorSnapshot`, `SectorCell`, `build_sector_snapshot()`
+- `cockpit/widgets/sector_panel.py` — `SectorPanel` (3×4 grid) + `SectorCell` widget
+- `analysis/market_analysis.py` — new `calculate_relative_strength()` function
+- `cockpit/format.py` — new `relative_strength_to_color()` for continuous-gradient interpolation
+- `cockpit/themes.py` — add `gradient_positive`, `gradient_negative`, `gradient_neutral` to both themes
+- `[sectors]` section in `cockpit.toml` with `lookback_days`, `comparison_ticker`, `intensity_max_pct`, `refresh_interval_seconds`
+- 11 SPDR sector ETFs (XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB) + SPY as reference cell
+- Relative strength vs SPY over configurable lookback window (default 20 days)
+- Cells render with continuous-gradient backgrounds (linear RGB interpolation), sparklines showing RS path
+- Sectors poll at slower cadence (default 5 minutes) — independent timer
+- No flash on update for sector cells (gradient *is* the visual)
 
-**Out of scope:**
-- Account panel (still placeholder)
-- Market pulse / sectors / correlations real data (Sessions 4+)
-- Drill-down screens
+**Out of scope (deferred to Session 6):**
+- `s` key binding
+- Sector deep-dive screen
+- Multi-timeframe view (1D/1W/1M/3M/YTD)
+- Sortable sectors
 
-**Pre-Session-3 questions for the owner (collect in Session 3 planning chat):**
-- Aesthetic reactions to the cockpit (density, colors, flash timing)
-- Layout reactions (panel sizes, account placeholder, watchlist row count)
-- Ergonomics reactions (keyboard bindings, help screen, theme cycling)
-- Watchlist YAML schema acceptance
-- Actual watchlists to ship in the spec, or generic examples
+**Out of scope (other sessions):**
+- Correlation panel real data (Session 7)
+- Account panel
+- Drill-down for individual tickers
 
-### Session 4 — Market pulse real data (planned)
+### Session 6 — Sector deep-dive screen (planned)
 
-Same pattern as Session 3 but for SPY/QQQ/IWM/VIX/10Y/DXY. Configurable pulse tickers in `cockpit.toml`. Reuses polling infrastructure from Session 3.
+Press `s` → full-screen sector view. Multi-timeframe relative-strength table (1D, 1W, 1M, 3M, YTD), sortable columns, per-sector sparklines at multiple timescales. First substantive non-home screen — exercises the screen-transition story end-to-end with real data. Reuses the workflow built in Session 5; adds new workflows for the multi-timeframe view if needed.
 
-### Session 5 — Sector heatmap real data + sector deep-dive screen (planned)
+### Session 7 — Correlation panel real data + deep-dive (planned)
 
-11 SPDR sector ETFs with relative strength vs SPY. Full sector screen on `s` key. Multi-timeframe view.
+Mini correlation matrix on home with real data (replaces remaining mock). Full correlation screen on `c` with adjustable lookback, correlation method (Pearson/Spearman/Kendall), and ticker set. Dash subprocess option for interactive heatmap with mouseover. Removes the last `_refresh_mock_panels` call.
 
-### Session 6 — Correlation panel real data + deep-dive (planned)
+### Session 8 — Ticker drill-down + polish (planned)
 
-Mini correlation matrix on home with real data. Full correlation screen on `c` with adjustable lookback, method, ticker set. Dash subprocess for interactive heatmap.
+Press `/` then type ticker → drill-down screen with key stats, recent OHLC, basic indicators. "Open in Dash" key spawns chart subprocess. Aesthetic polish pass across all panels and screens.
 
-### Session 7 — Ticker drill-down + polish (planned)
-
-Press `/` then type ticker → drill-down screen with key stats, recent OHLC, basic indicators. "Open in Dash" key spawns chart subprocess. Aesthetic polish pass.
-
-### Session 8 — Schwab integration end-to-end (timing flexible)
+### Session 9 — Schwab integration end-to-end (timing flexible)
 
 When the owner completes Schwab OAuth and `schwab-py` (or alternative) works on Python 3.14, validate the Schwab path end-to-end using the verification checklist Sonnet provided in `session-1-debrief.md`. May not need its own session — could be a config-flip plus a smoke-test pass.
 
@@ -195,12 +224,15 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 
 ## Status snapshot
 
-**Current state:** Cockpit TUI shell complete with mock data. Real data wiring begins in Session 3.
+**Current state:** Sessions 1-4 complete. Two home-screen panels (watchlist + market pulse) are wired to live data via yfinance using the workflow→reactive→worker→renderer pattern. Sector heatmap, correlations, and account panels remain mock. Real data wiring continues in Session 5 with sectors.
 
 **Working features:**
 - Existing CLI scripts (`get_data`, `run_backtest`, `correlations`, `plot_static`, `view_stock`, `view_backtest`) — all via `DataService`
-- Cockpit TUI launches, navigates, themes cycle, mock data flashes on refresh
-- yfinance data source is fully functional
+- Cockpit TUI launches, navigates, themes cycle
+- Watchlist panel: live quotes, configurable via `watchlists.yaml`, multi-list cycling on `w`, hot-reload on `r`
+- Market pulse panel: 8 configurable tickers, three display formats (price/index/yield), 30-day sparklines, 30s polling
+- First-flash bug fixed in `PriceCell`/`PctCell` (no false-green flash on first load)
+- yfinance data source fully functional including special symbols (`^VIX`, `^TNX`, `DX-Y.NYB`, `CL=F`, `GC=F`)
 - Schwab data source compiles but is unauthenticated (deferred)
 
 **Known deferred items:**
@@ -208,7 +240,9 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 - `schwab-py` on Python 3.14 (may need workaround when relevant)
 - `pandas-ta` removal from `requirements.txt` (trivial cleanup)
 - Per-room theme assignment (infrastructure ready, not used yet)
-- Auto-refresh polling (Session 3)
-- Watchlist YAML config (Session 3)
+- Sector panel still mock (Session 5)
+- Correlation panel still mock (Session 7)
+- Account panel still placeholder (no session assigned yet — waits on Schwab)
+- `_refresh_mock_panels` shrinks each session as panels go live; eliminated after Session 7
 
-**Architecture stability:** No expected refactors. Sessions 3-7 are additive on top of the foundation from Sessions 1-2.
+**Architecture stability:** No expected refactors. Sessions 5-8 are additive on top of the foundation from Sessions 1-4. The polling pattern proven across watchlist and pulse is the template for sectors (5) and correlations (7); sector and correlation deep-dive screens (6, 7) will be the first non-home screens with substantive content.

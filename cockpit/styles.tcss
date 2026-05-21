@@ -55,8 +55,8 @@ Screen {
 }
 
 #panel-sectors {
-    width: 36;
-    min-width: 28;
+    width: 1fr;
+    min-width: 36;
     border: round $border;
     border-title-color: $primary;
     border-title-style: bold;
@@ -67,6 +67,100 @@ Screen {
     border: round $border;
     border-title-color: $primary;
     border-title-style: bold;
+}
+
+/* ── Watchlist panel ─────────────────────────────────────── */
+
+#panel-watchlist {
+    height: auto;
+    min-height: 10;
+    max-height: 20;
+}
+
+WatchlistPanel {
+    height: 1fr;
+    width: 1fr;
+}
+
+WatchlistPanel:focus {
+    border: none;
+}
+
+WatchlistRow {
+    height: 1;
+}
+
+WatchlistRow.wl-error-row {
+    color: $text-dim;
+}
+
+WatchlistErrorRow {
+    height: 1;
+    color: $text-dim;
+}
+
+/* ── Market pulse panel ──────────────────────────────────── */
+
+MarketPulsePanel {
+    height: 1fr;
+    width: 1fr;
+}
+
+MarketPulsePanel #mp-status {
+    height: 1;
+    color: $text-dim;
+}
+
+MarketPulsePanel .mp-row {
+    height: 1fr;
+    width: 1fr;
+}
+
+PulseCell {
+    border: round $border;
+    width: 1fr;
+    height: 1fr;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+PulseCell .pc-row {
+    height: 1;
+    width: 1fr;
+}
+
+PulseCell .pc-price {
+    width: 1fr;
+    text-align: right;
+    color: $text-primary;
+}
+
+PulseCell .pc-change {
+    width: 9;
+    text-align: right;
+    color: $text-dim;
+}
+
+PulseCell .pc-change.pc-up {
+    color: $positive;
+}
+
+PulseCell .pc-change.pc-down {
+    color: $negative;
+}
+
+PulseCell .pc-pct {
+    width: 1fr;
+}
+
+PulseCell .pc-spark {
+    width: 11;
+    color: $text-dim;
+    text-align: right;
+}
+
+PulseCell.pc-error {
+    color: $text-dim;
 }
 
 /* ── PanelFrame ──────────────────────────────────────────── */
@@ -148,6 +242,69 @@ HelpScreen CommandFooter {
     height: 1;
     background: $surface;
     color: $text-dim;
+}
+
+/* ── Sector panel ────────────────────────────────────────── */
+
+SectorPanel {
+    width: 1fr;
+    height: 1fr;
+}
+
+SectorPanel .sp-grid {
+    layout: vertical;
+    height: 1fr;
+}
+
+SectorPanel .sp-row {
+    layout: horizontal;
+    height: 1fr;
+}
+
+SectorCell {
+    width: 1fr;
+    height: 1fr;
+    border: round $border;
+    border-title-color: $text-dim;
+    border-title-style: bold;
+    /* background is set imperatively per-cell by update_cell() */
+}
+
+SectorCell .sc-label {
+    height: 1;
+    color: $text-dim;
+}
+
+SectorCell .sc-data {
+    height: 1;
+}
+
+/* ── Sector deep-dive screen ─────────────────────────────── */
+
+SectorDeepDiveScreen {
+    layout: vertical;
+}
+
+SectorDeepDiveScreen > #deep-dive-header {
+    height: 1;
+    color: $primary;
+    background: $surface;
+    text-style: bold;
+    dock: top;
+}
+
+SectorDeepDiveScreen > #deep-dive-footer {
+    height: 1;
+    background: $surface;
+    color: $text-dim;
+    dock: bottom;
+}
+
+SectorTable {
+    height: 1fr;
+    border: solid $border;
+    overflow-y: auto;
+    padding: 0 1;
 }
 
 /* ── Account panel placeholder ───────────────────────────── */

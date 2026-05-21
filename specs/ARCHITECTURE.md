@@ -155,7 +155,7 @@ Currently long-only, one-position-at-a-time. More sophisticated portfolio backte
 
 `broker/market_data.py` was removed in Session 1 (Schwab market data moved into `marketdata/sources/schwab_source.py`).
 
-### Workflows (future)
+### Workflows
 
 **Package:** `workflows/`
 
@@ -163,15 +163,24 @@ Currently long-only, one-position-at-a-time. More sophisticated portfolio backte
 
 **Pattern:** each workflow defines a snapshot dataclass and exposes a function that returns it.
 
-**Examples** (some built, some planned):
-- `WatchlistSnapshot` — quotes + recent history for a list of tickers (Session 3)
-- `MarketPulseSnapshot` — major index quotes + sparklines (Session 4)
-- `SectorSnapshot` — sector ETF returns + relative strength (Session 5)
-- `CorrelationSnapshot` — correlation matrix + ranked pair list (Session 6)
+**Existing workflows:**
+- `WatchlistSnapshot` — quotes + recent history for a list of tickers (Session 3, built)
+- `MarketPulseSnapshot` — major index quotes + sparklines for 8 configurable tickers (Session 4, built)
+
+**Planned workflows:**
+- `SectorSnapshot` — 11 SPDR sector ETFs with relative strength vs SPY (Session 5)
+- `CorrelationSnapshot` — correlation matrix + ranked pair list (Session 7)
 - `BacktestResult` — equity curve + trades + metrics (already implicit; would formalize)
 - `MorningBriefing` — composite snapshot for a "what to know this morning" view (future)
 
 Workflows are the **single source of truth** for "how is this computed." If the cockpit, a Dash app, and a CLI command all want a sector snapshot, they all call the same workflow.
+
+The Session 3-4 workflows established the canonical pattern:
+1. Module-level snapshot dataclass(es) — pure data, no methods
+2. `build_<name>_snapshot(config, data_service=None, now=None) -> Snapshot` function
+3. Optional `data_service` parameter (defaults to `get_data_service()`) so HomeScreen never needs to import the data layer directly
+4. Per-cell error handling: one bad ticker fails locally, panel still renders
+5. Panel-level error field for catastrophic failures (e.g., benchmark ticker unavailable in Session 5)
 
 ### Visualization
 
@@ -199,6 +208,8 @@ Workflows are the **single source of truth** for "how is this computed." If the 
 
 **Theme system:** dicts in `themes.py` define palettes. Active theme from `cockpit.toml`. Two themes currently: `claude-warm` (default, warm orange/cream on near-black) and `blue-orange` (colorblind-friendly, blue-up / orange-down). Cycle via `t`. Per-screen theme override is a planned future extension; infrastructure supports it.
 
+Starting in Session 5, themes also define a three-color gradient (`gradient_positive`, `gradient_negative`, `gradient_neutral`) used by the sector heatmap for continuous-color magnitude encoding. The gradient is interpolated in linear RGB by `cockpit/format.py::relative_strength_to_color()`. This is the first cockpit visual that uses a continuous color scale rather than binary up/down state.
+
 **Numeric formatting rules:**
 - Tickers all-caps
 - Prices: 2 decimals always (`187.42`)
@@ -219,7 +230,7 @@ Workflows are the **single source of truth** for "how is this computed." If the 
 
 **Files:**
 - `cockpit.toml` (at project root) — app-wide settings
-- `watchlists.yaml` (future, at project root) — watchlist definitions
+- `watchlists.yaml` (at project root, added Session 3) — watchlist definitions
 
 **Module:** `config/settings.py` — `Settings` frozen dataclass with `load()` classmethod. Resolves paths relative to project root (not CWD). Single source of truth — no other code reads the TOML directly.
 
@@ -241,7 +252,7 @@ Workflows are the **single source of truth** for "how is this computed." If the 
 
 ---
 
-## File layout (current state, post-Session-2)
+## File layout (current state, post-Session-4)
 
 ```
 projectAlgo/
@@ -277,6 +288,11 @@ projectAlgo/
 │   ├── schwab_client.py
 │   └── account.py
 │
+├── workflows/                    # orchestration layer
+│   ├── __init__.py
+│   ├── watchlist_snapshot.py     # Session 3
+│   └── market_pulse_snapshot.py  # Session 4
+│
 ├── analysis/                     # stateless computation
 │   ├── __init__.py
 │   ├── technical_analysis.py
@@ -306,6 +322,7 @@ projectAlgo/
 │   ├── styles.tcss
 │   ├── bindings.py
 │   ├── format.py
+│   ├── watchlists.py             # Session 3
 │   ├── mock_data.py              # temporary; deletes as real data lands
 │   ├── screens/
 │   │   ├── __init__.py
@@ -318,7 +335,9 @@ projectAlgo/
 │       ├── pct_cell.py
 │       ├── panel_frame.py
 │       ├── clock_header.py
-│       └── command_footer.py
+│       ├── command_footer.py
+│       ├── watchlist_panel.py    # Session 3
+│       └── market_pulse_panel.py # Session 4
 │
 ├── scripts/                      # CLI entry points
 │   ├── __init__.py
@@ -335,11 +354,16 @@ projectAlgo/
 │   ├── ROADMAP.md
 │   ├── ARCHITECTURE.md           # this file
 │   ├── session-1-spec.md
-│   └── session-2-spec.md
+│   ├── session-2-spec.md
+│   ├── session-3-spec.md
+│   ├── session-4-spec.md
+│   └── session-5-spec.md
 │
 ├── notes/                        # session debriefs
 │   ├── session-1-debrief.md
-│   └── session-2-debrief.md
+│   ├── session-2-debrief.md
+│   ├── session-3-debrief.md
+│   └── session-4-debrief.md
 │
 └── data/                         # storage (not code)
     ├── historical_data/          # cached CSV files
@@ -347,8 +371,10 @@ projectAlgo/
 ```
 
 **Future additions:**
-- `workflows/` package — added in Session 3
-- `watchlists.yaml` at root — added in Session 3
+- `workflows/sector_snapshot.py` and `cockpit/widgets/sector_panel.py` — Session 5
+- `cockpit/screens/sectors.py` — Session 6 (sector deep-dive)
+- `workflows/correlation_snapshot.py` and `cockpit/screens/correlations.py` — Session 7
+- `cockpit/screens/ticker_detail.py` — Session 8
 - `options/` package — far future, when options room is built
 - Per-screen theme assignment infrastructure use — future
 
