@@ -23,7 +23,7 @@ A Python framework for collecting and managing historical market data, computing
 - Static candlestick + indicator plots via mplfinance
 - Interactive browser-based stock viewer (Dash)
 - Interactive backtest results dashboard (Dash) with equity curve, trade log, and performance summary
-- **Cockpit TUI** — terminal market dashboard with real-time-style market pulse, watchlist, sector heatmap, and correlation matrix
+- **Cockpit TUI** — live terminal market dashboard with market pulse, watchlist, sector heatmap, and sector deep-dive screen
 
 ---
 
@@ -57,7 +57,7 @@ A Python framework for collecting and managing historical market data, computing
    pip3.14 install textual tomli --break-system-packages
    ```
 
-4. **Configure settings** in `cockpit.toml` at the project root (created automatically with defaults).
+4. **Configure settings** in `cockpit.toml` at the project root.
 
 ---
 
@@ -73,7 +73,21 @@ backtest_results_dir = "data/backtest_results"
 
 [theme]
 default = "claude-warm"   # or "blue-orange"
+
+[sectors]
+lookback_days = 20
+comparison_ticker = "SPY"
+intensity_max_pct = 5.0
+refresh_interval_seconds = 300
+
+[pulse]
+tickers = [
+    { symbol = "SPY", label = "S&P 500", format = "price" },
+    # ...
+]
 ```
+
+See `cockpit.toml` for the full reference including `[sector_deep_dive]` and `[pulse]` sections.
 
 ### Schwab API (optional)
 
@@ -170,7 +184,7 @@ Shows equity curve, OHLC chart with signals, trade log, and full performance met
 
 ### 8. Cockpit TUI
 
-Terminal market dashboard. Requires Python 3.14.
+Live terminal market dashboard. Requires Python 3.14.
 
 ```bash
 python3.14 -m scripts.cockpit
@@ -181,15 +195,33 @@ Minimum terminal size: 120×30. Keyboard shortcuts:
 | Key | Action |
 |-----|--------|
 | `Q` | Quit |
-| `R` | Refresh data |
+| `R` | Refresh data + reload config |
 | `?` | Help |
 | `T` | Cycle theme |
-| `Esc` | Back |
+| `W` | Cycle watchlist |
+| `S` | Sector deep-dive screen |
+| `Esc` | Back to previous screen |
 | `Tab` / `Shift+Tab` | Navigate panels |
+
+Watchlists are configured in `watchlists.yaml` at the project root.
 
 ---
 
 ## Architecture
+
+```
+UI / Views  (cockpit TUI, Dash deep-dives, CLI scripts)
+     ↓
+Workflows   (orchestration: composes data + analysis into snapshots)
+     ↓
+Analysis / Strategies  (stateless computation)
+     ↓
+Domain Models  (Stock, Quote, Transaction — passive containers)
+     ↓
+Data Layer  (DataService + MarketDataSource implementations)
+     ↓
+Sources  (yfinance, Schwab)
+```
 
 ```
 marketdata/         — DataService: unified data fetch, cache, and source fallback
@@ -198,22 +230,30 @@ marketdata/         — DataService: unified data fetch, cache, and source fallb
 broker/             — Schwab OAuth client, account summary, live quote wrappers
 core/               — Stock (passive dataclass), Quote, Transaction data models
 analysis/           — Stateless indicator and performance metric functions
-  market_analysis.py — load_aligned_returns, correlation matrix, pair summaries
+  market_analysis.py — load_aligned_returns, calculate_relative_strength, correlation matrix
 strategies/         — BaseStrategy ABC + SMACrossoverStrategy
 backtesting/        — Backtester engine (FIFO positions, slippage, equity curve)
 visualization/      — plot_static (mplfinance), view_stock (Dash), view_backtest (Dash),
                       plot_correlation (Plotly heatmap)
-cockpit/            — Textual TUI dashboard
-  screens/          — HomeScreen (5 panels), HelpScreen
-  widgets/          — ClockHeader, CommandFooter, PanelFrame, PriceCell, PctCell, Sparkline
+workflows/          — Pure data orchestration (no Textual/asyncio)
+  watchlist_snapshot.py              — WatchlistSnapshot, build_watchlist_snapshot()
+  market_pulse_snapshot.py           — PulseSnapshot, build_pulse_snapshot()
+  sector_snapshot.py                 — SectorSnapshot, build_sector_snapshot(); SPDR_SECTORS list
+  multi_timeframe_sector_snapshot.py — MultiTimeframeSectorSnapshot, build_multi_timeframe_sector_snapshot()
+cockpit/            — Textual TUI dashboard (Python 3.14)
+  screens/          — HomeScreen, HelpScreen, SectorDeepDiveScreen
+  widgets/          — ClockHeader, CommandFooter, PanelFrame, PriceCell, PctCell, Sparkline,
+                      WatchlistPanel, MarketPulsePanel, SectorPanel, SectorTable
+  watchlists/       — YAML and Schwab watchlist providers
 config/             — Settings dataclass reading cockpit.toml
 scripts/            — CLI entry points (not importable as library code)
 data/
   historical_data/  — Cached CSV files
   backtest_results/ — Pickled backtest result bundles
+watchlists.yaml     — Named watchlists for the cockpit TUI
 ```
 
-Data flows in one direction: **marketdata → core → analysis/strategies → backtesting → visualization**. `broker/` provides Schwab account ops but does not feed the data pipeline.
+Data flows in one direction: **marketdata → core → analysis/strategies → backtesting → visualization**. `broker/` provides Schwab account ops but does not feed the data pipeline. The cockpit is read-only — no order placement.
 
 ### Adding a New Strategy
 
@@ -230,4 +270,4 @@ Data flows in one direction: **marketdata → core → analysis/strategies → b
 - The backtest dashboard does not support intraday visualization
 - Schwab does not support paper trading — live account commands affect a real account
 - Schwab token files expire every 7 days and require re-running `scripts/schwab_auth.py`
-- Cockpit currently displays mock data; live data wiring is planned for a future session
+- Correlation panel on the home screen still uses mock data (live wiring planned for Session 7)
