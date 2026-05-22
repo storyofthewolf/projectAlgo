@@ -42,6 +42,26 @@ timeframes = [
     { label = "YTD", calendar = "ytd" },
 ]
 
+[correlations]
+# Home-screen correlation panel. Keep this list short (5-7 tickers) so the
+# panel fits on home at 120×30.
+tickers = ["SPY", "QQQ", "IWM", "TLT", "GLD", "^VIX"]
+lookback_days = 60
+method = "pearson"
+refresh_interval_seconds = 300   # 5 minutes; correlations move slowly
+
+[correlation_deep_dive]
+default_preset = "cross_asset"
+default_method = "pearson"
+default_lookback_days = 60
+lookback_options = [10, 20, 60, 120, 252]
+refresh_interval_seconds = 60
+
+[correlation_deep_dive.presets]
+cross_asset = ["SPY", "QQQ", "IWM", "TLT", "GLD", "^VIX", "DX-Y.NYB", "CL=F"]
+sectors = ["XLK", "XLF", "XLV", "XLY", "XLC", "XLI", "XLP", "XLE", "XLU", "XLRE", "XLB"]
+mega_cap = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
+
 [sectors]
 lookback_days = 20
 comparison_ticker = "SPY"

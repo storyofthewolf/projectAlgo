@@ -8,6 +8,119 @@ except ImportError:
     import tomli as tomllib
 
 
+_VALID_CORR_METHODS = ("pearson", "spearman", "kendall")
+
+
+@dataclass(frozen=True)
+class CorrelationConfig:
+    """Home-screen correlation panel config."""
+    tickers: tuple[str, ...]
+    lookback_days: int
+    method: str
+    refresh_interval_seconds: int
+
+
+@dataclass(frozen=True)
+class CorrelationDeepDiveConfig:
+    """Correlation deep-dive screen config."""
+    presets: dict[str, tuple[str, ...]]
+    default_preset: str
+    default_method: str
+    default_lookback_days: int
+    lookback_options: tuple[int, ...]
+    refresh_interval_seconds: int
+
+
+_DEFAULT_CORRELATION_CONFIG = CorrelationConfig(
+    tickers=("SPY", "QQQ", "IWM", "TLT", "GLD", "^VIX"),
+    lookback_days=60,
+    method="pearson",
+    refresh_interval_seconds=300,
+)
+
+_DEFAULT_CORRELATION_DEEP_DIVE_CONFIG = CorrelationDeepDiveConfig(
+    presets={
+        "cross_asset": ("SPY", "QQQ", "IWM", "TLT", "GLD", "^VIX", "DX-Y.NYB", "CL=F"),
+        "sectors": ("XLK", "XLF", "XLV", "XLY", "XLC", "XLI", "XLP", "XLE", "XLU", "XLRE", "XLB"),
+        "mega_cap": ("AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"),
+    },
+    default_preset="cross_asset",
+    default_method="pearson",
+    default_lookback_days=60,
+    lookback_options=(10, 20, 60, 120, 252),
+    refresh_interval_seconds=60,
+)
+
+
+def _parse_correlations(raw: dict) -> CorrelationConfig:
+    """Parse and validate the [correlations] TOML table."""
+    method = str(raw.get("method", "pearson")).lower()
+    if method not in _VALID_CORR_METHODS:
+        raise ValueError(
+            f"[correlations] method '{method}' is not valid; "
+            f"must be one of {_VALID_CORR_METHODS}"
+        )
+    lookback = raw.get("lookback_days", 60)
+    if not isinstance(lookback, int) or lookback < 2:
+        raise ValueError(
+            f"[correlations] lookback_days must be an integer >= 2, got {lookback!r}"
+        )
+    tickers_raw = raw.get("tickers", None)
+    if tickers_raw:
+        tickers = tuple(str(t) for t in tickers_raw)
+    else:
+        tickers = _DEFAULT_CORRELATION_CONFIG.tickers
+    return CorrelationConfig(
+        tickers=tickers,
+        lookback_days=lookback,
+        method=method,
+        refresh_interval_seconds=raw.get("refresh_interval_seconds", 300),
+    )
+
+
+def _parse_correlation_deep_dive(raw: dict) -> CorrelationDeepDiveConfig:
+    """Parse and validate the [correlation_deep_dive] TOML table."""
+    presets_raw = raw.get("presets", {})
+    if not presets_raw:
+        presets = _DEFAULT_CORRELATION_DEEP_DIVE_CONFIG.presets
+    else:
+        presets = {name: tuple(str(t) for t in tickers)
+                   for name, tickers in presets_raw.items()}
+
+    default_preset = raw.get("default_preset", "cross_asset")
+    if default_preset not in presets:
+        raise ValueError(
+            f"[correlation_deep_dive] default_preset '{default_preset}' "
+            f"is not among preset names {sorted(presets.keys())}"
+        )
+
+    default_method = str(raw.get("default_method", "pearson")).lower()
+    if default_method not in _VALID_CORR_METHODS:
+        raise ValueError(
+            f"[correlation_deep_dive] default_method '{default_method}' is not valid; "
+            f"must be one of {_VALID_CORR_METHODS}"
+        )
+
+    lookback_options_raw = raw.get("lookback_options", [10, 20, 60, 120, 252])
+    lookback_options = tuple(int(x) for x in lookback_options_raw)
+
+    default_lookback = raw.get("default_lookback_days", 60)
+    if default_lookback not in lookback_options:
+        raise ValueError(
+            f"[correlation_deep_dive] default_lookback_days {default_lookback} "
+            f"is not in lookback_options {lookback_options}"
+        )
+
+    return CorrelationDeepDiveConfig(
+        presets=presets,
+        default_preset=default_preset,
+        default_method=default_method,
+        default_lookback_days=default_lookback,
+        lookback_options=lookback_options,
+        refresh_interval_seconds=raw.get("refresh_interval_seconds", 60),
+    )
+
+
 @dataclass(frozen=True)
 class SectorConfig:
     lookback_days: int = 20
@@ -159,6 +272,8 @@ class Settings:
     pulse_tickers: tuple[PulseTicker, ...]
     sector_config: SectorConfig
     sector_deep_dive_config: SectorDeepDiveConfig
+    correlation_config: CorrelationConfig
+    correlation_deep_dive_config: CorrelationDeepDiveConfig
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "Settings":
@@ -197,6 +312,18 @@ class Settings:
         else:
             sector_deep_dive_config = _parse_sector_deep_dive(deep_dive_raw)
 
+        corr_raw = data.get('correlations', None)
+        if corr_raw is None:
+            correlation_config = _DEFAULT_CORRELATION_CONFIG
+        else:
+            correlation_config = _parse_correlations(corr_raw)
+
+        corr_dd_raw = data.get('correlation_deep_dive', None)
+        if corr_dd_raw is None:
+            correlation_deep_dive_config = _DEFAULT_CORRELATION_DEEP_DIVE_CONFIG
+        else:
+            correlation_deep_dive_config = _parse_correlation_deep_dive(corr_dd_raw)
+
         return cls(
             preferred_source=data['data']['preferred_source'],
             data_dir=project_root / data['data']['data_dir'],
@@ -207,4 +334,6 @@ class Settings:
             pulse_tickers=pulse_tickers,
             sector_config=sector_config,
             sector_deep_dive_config=sector_deep_dive_config,
+            correlation_config=correlation_config,
+            correlation_deep_dive_config=correlation_deep_dive_config,
         )

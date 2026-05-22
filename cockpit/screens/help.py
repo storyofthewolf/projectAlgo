@@ -19,6 +19,7 @@ _HELP_TEXT = """\
 
   HOME SCREEN
     S              SECTOR DEEP-DIVE (multi-timeframe RS table)
+    C              CORRELATIONS DEEP-DIVE (matrix + ranked pairs)
     W              CYCLE WATCHLIST
 
   WATCHLIST PANEL (when focused)
@@ -33,8 +34,15 @@ _HELP_TEXT = """\
     R              REFRESH DATA
     ESC            BACK TO HOME
 
+  CORRELATION DEEP-DIVE SCREEN (c → enters, Esc → exits)
+    M              CYCLE METHOD (Pearson → Spearman → Kendall)
+    [ / ]          DECREASE / INCREASE LOOKBACK WINDOW
+    P              CYCLE TICKER PRESET
+    R              REFRESH DATA
+    ESC            BACK TO HOME
+
   RESERVED (future sessions)
-    A=ACCOUNT  C=CORRELATIONS  /=FIND TICKER
+    A=ACCOUNT  /=FIND TICKER
 
 """
 

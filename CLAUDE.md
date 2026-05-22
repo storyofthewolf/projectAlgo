@@ -162,7 +162,7 @@ Sources  (yfinance, Schwab)
 | `marketdata/sources/schwab_source.py` | **`SchwabSource`** — Schwab integration; supports daily + intraday. `is_available()` returns False when unauthenticated. |
 | `marketdata/sources/base.py` | **`MarketDataSource`** ABC — defines the interface all sources must implement. |
 | `marketdata/exceptions.py` | `DataSourceError`, `SourceUnavailableError`, `UnsupportedIntervalError`. |
-| `config/settings.py` | **`Settings`** — reads `cockpit.toml`. Exposes `data_config`, `sector_config` (`SectorConfig`), `sector_deep_dive_config` (`SectorDeepDiveConfig`), `pulse_config`. All path resolution is relative to project root. |
+| `config/settings.py` | **`Settings`** — reads `cockpit.toml`. Exposes `data_config`, `sector_config` (`SectorConfig`), `sector_deep_dive_config` (`SectorDeepDiveConfig`), `pulse_config`, `correlation_config` (`CorrelationConfig`), `correlation_deep_dive_config` (`CorrelationDeepDiveConfig`). All path resolution is relative to project root. |
 | `broker/schwab_client.py` | OAuth2 auth singleton. Reads credentials from env vars / `.env`. Call `is_authenticated()` before using live data. |
 | `broker/account.py` | `get_account_summary()` returns positions/balances dict; `format_positions_table()` / `format_balances()` format for CLI. |
 | `core/security.py` | Passive `Stock` dataclass. |
@@ -179,6 +179,7 @@ Sources  (yfinance, Schwab)
 | `workflows/market_pulse_snapshot.py` | `PulseSnapshot`, `PulseTicker`, `build_pulse_snapshot()` — quotes + sparklines for the 8 pulse tickers. |
 | `workflows/sector_snapshot.py` | `SectorSnapshot`, `SectorCell`, `build_sector_snapshot()`, `SPDR_SECTORS` — RS vs SPY for 11 SPDR ETFs. |
 | `workflows/multi_timeframe_sector_snapshot.py` | `MultiTimeframeSectorSnapshot`, `SectorRow`, `TimeframeRS`, `build_multi_timeframe_sector_snapshot()` — RS across configurable timeframes. |
+| `workflows/correlation_snapshot.py` | `CorrelationSnapshot`, `RankedPair`, `build_correlation_snapshot()` — pairwise correlation matrix with per-ticker failure tolerance. |
 | `cockpit/app.py` | `CockpitApp` — root Textual App; theme registration + CSS var injection. |
 | `cockpit/screens/home.py` | `HomeScreen` — 5-panel layout (account, pulse, watchlist, sectors, correlations). |
 | `cockpit/screens/sectors.py` | `SectorDeepDiveScreen` — multi-timeframe RS table; entered via `s`, exits via Esc. |
@@ -259,17 +260,18 @@ The cockpit is a Textual-based terminal dashboard (`cockpit/`) that monitors mar
 
 ### Cockpit workflow pattern
 
-Every live panel follows the same template established in Sessions 3-4:
+All five home-screen panels follow the same template established in Sessions 3-4:
 
 ```
 workflow function (pure data, no Textual)
     → HomeScreen reactive variable
-    → @work(thread=True) worker calls workflow, then call_from_thread(_set_var)
+    → @work(exclusive=True, group="group_name", thread=True) worker calls workflow, then call_from_thread(_set_var)
     → watch_<var>() reactive handler
     → panel widget .update_snapshot() / .snapshot = new
+    → independent set_interval() timer for polling cadence
 ```
 
-Workflows in `workflows/` are pure functions: no Textual imports, no asyncio. They take a config object and an optional `data_service` parameter (defaults to `get_data_service()` internally). Screens and widgets never import from `marketdata/` directly.
+Workflows in `workflows/` are pure functions: no Textual imports, no asyncio. They take a config object and an optional `data_service` parameter (defaults to `get_data_service()` internally). Each panel has its own polling timer and exclusive worker group — timers run independently. Screens and widgets never import from `marketdata/` directly.
 
 ### Package layout
 
@@ -277,13 +279,14 @@ Workflows in `workflows/` are pure functions: no Textual imports, no asyncio. Th
 cockpit/
   app.py              CockpitApp — root Textual App; theme registration + CSS var injection
   themes.py           THEMES_CONFIG dict + Theme objects for claude-warm and blue-orange
-  mock_data.py        Stub data for the correlations panel (still mock); regenerate_mock()
+  mock_data.py        Deprecated — mock data removed; file retained for potential future use
   format.py           Pure formatting helpers: fmt_price, fmt_pct, make_sparkline,
-                      relative_strength_to_color, fmt_rs_pct, …
+                      relative_strength_to_color, correlation_to_color, _gradient_color
   styles.tcss         Textual stylesheet; uses CSS variables wired to the active theme
   screens/
     home.py           HomeScreen — 5-panel layout (account, pulse, watchlist, sectors, corr)
     sectors.py        SectorDeepDiveScreen — multi-timeframe RS table; s → enter, Esc → back
+    correlations.py   CorrelationDeepDiveScreen — full NxN matrix + ranked pairs; c → enter, Esc → back
     help.py           HelpScreen — keyboard reference; Esc to return
   widgets/
     panel_frame.py    PanelFrame(Container) — border + title wrapper
@@ -296,6 +299,9 @@ cockpit/
     market_pulse_panel.py  MarketPulsePanel, PulseCell — 4×2 grid; price/index/yield formats
     sector_panel.py   SectorPanel, SectorCell — 3×4 grid; gradient backgrounds by RS
     sector_table.py   SectorTable — Rich-markup table; column focus, sort, gradient cells
+    correlation_panel.py  CorrelationPanel — home screen lower-triangle + diagonal matrix, gradient cells
+    correlation_table.py  CorrelationTable — deep-dive full NxN matrix, Rich-markup rendering
+    ranked_pair_list.py  RankedPairList — deep-dive right panel, pairs ranked high→low, text-color gradient
   watchlists/
     yaml_provider.py  Loads watchlists.yaml; hot-reloaded on R
     schwab_provider.py  Schwab watchlist provider (deferred until OAuth)
@@ -308,8 +314,8 @@ cockpit/
 | Market pulse (4×2 grid) | 8 tickers: SPY, QQQ, IWM, VIX, 10Y, DXY, Oil, Gold | 30s |
 | Watchlist | Configurable via `watchlists.yaml`; cycle with `W` | 30s |
 | Sector heatmap | 11 SPDR ETFs RS vs SPY; gradient backgrounds | 5 min |
-| Sector deep-dive | 12 rows × N timeframes; SPY pinned at top | 60s |
-| Correlations | Still mock data | — |
+| Sector deep-dive (on `S`) | 12 rows × N timeframes; SPY pinned at top | 60s |
+| Correlations (home + deep-dive on `C`) | Configurable ticker list, method (Pearson/Spearman/Kendall), lookback | 5 min (home); 60s (deep-dive) |
 
 ### Themes
 
@@ -332,6 +338,7 @@ The `T` key cycles themes at runtime. `CockpitApp.get_css_variables()` is overri
 | `T` | Cycle theme |
 | `W` | Cycle watchlist |
 | `S` | Open sector deep-dive screen |
+| `C` | Open correlation deep-dive screen |
 | `Esc` | Back to previous screen |
 | `Tab` / `Shift+Tab` | Focus next / previous panel |
 
@@ -341,6 +348,16 @@ In sector deep-dive screen:
 |-----|--------|
 | `← →` | Move column focus |
 | `Enter` | Sort by focused column (toggle asc/desc) |
+| `R` | Refresh data |
+| `Esc` | Back to home |
+
+In correlation deep-dive screen:
+
+| Key | Action |
+|-----|--------|
+| `M` | Cycle method (Pearson → Spearman → Kendall) |
+| `[` / `]` | Decrease / increase lookback window |
+| `P` | Cycle ticker preset |
 | `R` | Refresh data |
 | `Esc` | Back to home |
 
@@ -367,5 +384,5 @@ Follow the established workflow pattern:
 - Schwab does not support paper trading — live account commands affect a real account
 - Schwab token files expire every 7 days and require re-running `scripts/schwab_auth.py`
 - `preferred_source = "yfinance"` in `cockpit.toml` until Schwab OAuth is configured
-- Correlations panel on the home screen still uses mock data (Session 7)
-- Sector cell gradient colors update on the next polling refresh after a theme change, not immediately
+- Sector and correlation cell gradient colors update on the next polling refresh after a theme change, not immediately
+- Dash/Plotly interactive heatmap remains available only as a CLI tool (`python -m scripts.correlations --plot`); cockpit subprocess integration deferred until after Session 8

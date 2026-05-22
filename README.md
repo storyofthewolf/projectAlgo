@@ -23,7 +23,7 @@ A Python framework for collecting and managing historical market data, computing
 - Static candlestick + indicator plots via mplfinance
 - Interactive browser-based stock viewer (Dash)
 - Interactive backtest results dashboard (Dash) with equity curve, trade log, and performance summary
-- **Cockpit TUI** — live terminal market dashboard with market pulse, watchlist, sector heatmap, and sector deep-dive screen
+- **Cockpit TUI** — live terminal market dashboard with market pulse, watchlist, sector heatmap, sector deep-dive screen, and correlation matrix + deep-dive
 
 ---
 
@@ -199,7 +199,8 @@ Minimum terminal size: 120×30. Keyboard shortcuts:
 | `?` | Help |
 | `T` | Cycle theme |
 | `W` | Cycle watchlist |
-| `S` | Sector deep-dive screen |
+| `S` | Sector deep-dive screen (multi-timeframe RS table, sortable) |
+| `C` | Correlation deep-dive screen (full matrix, cycle method/lookback/preset) |
 | `Esc` | Back to previous screen |
 | `Tab` / `Shift+Tab` | Navigate panels |
 
@@ -270,4 +271,4 @@ Data flows in one direction: **marketdata → core → analysis/strategies → b
 - The backtest dashboard does not support intraday visualization
 - Schwab does not support paper trading — live account commands affect a real account
 - Schwab token files expire every 7 days and require re-running `scripts/schwab_auth.py`
-- Correlation panel on the home screen still uses mock data (live wiring planned for Session 7)
+- Sector and correlation gradient colors update on the next polling refresh after a theme change, not immediately

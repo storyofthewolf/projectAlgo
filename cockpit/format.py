@@ -23,6 +23,30 @@ def _interpolate_hex(color_a: str, color_b: str, t: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def _gradient_color(
+    value: float,
+    intensity_max: float,
+    gradient_positive: str,
+    gradient_negative: str,
+    gradient_neutral: str,
+) -> str:
+    """Linear RGB interpolation from neutral toward positive/negative endpoints.
+
+    value is a signed float; intensity_max is the clamp boundary (same units).
+    Values at or beyond the boundary return the endpoint color directly.
+    """
+    if value >= intensity_max:
+        return gradient_positive
+    if value <= -intensity_max:
+        return gradient_negative
+    if value >= 0:
+        t = value / intensity_max
+        return _interpolate_hex(gradient_neutral, gradient_positive, t)
+    else:
+        t = -value / intensity_max
+        return _interpolate_hex(gradient_neutral, gradient_negative, t)
+
+
 def relative_strength_to_color(
     rs_value: Optional[float],
     intensity_max_pct: float,
@@ -38,20 +62,33 @@ def relative_strength_to_color(
     """
     if rs_value is None:
         return gradient_neutral
+    return _gradient_color(
+        rs_value,
+        intensity_max_pct / 100.0,
+        gradient_positive,
+        gradient_negative,
+        gradient_neutral,
+    )
 
-    max_rs = intensity_max_pct / 100.0
 
-    if rs_value >= max_rs:
-        return gradient_positive
-    if rs_value <= -max_rs:
-        return gradient_negative
+def correlation_to_color(
+    rho: float,
+    theme: dict,
+    intensity_max: float = 1.0,
+) -> str:
+    """Map a correlation value in [-1, +1] to a hex color from the theme gradient.
 
-    if rs_value >= 0:
-        t = rs_value / max_rs
-        return _interpolate_hex(gradient_neutral, gradient_positive, t)
-    else:
-        t = -rs_value / max_rs
-        return _interpolate_hex(gradient_neutral, gradient_negative, t)
+    Semantic wrapper: correlation magnitude maps to gradient intensity, sign
+    maps to positive/negative gradient endpoint. Math delegates to the same
+    linear-RGB interpolator used by relative_strength_to_color.
+    """
+    return _gradient_color(
+        rho,
+        intensity_max,
+        theme["gradient_positive"],
+        theme["gradient_negative"],
+        theme["gradient_neutral"],
+    )
 
 
 def fmt_rs_pct(value: Optional[float]) -> str:

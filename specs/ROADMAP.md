@@ -133,7 +133,7 @@ A multi-session build, each session bounded to fit comfortably in one Claude Cod
 
 **Verified:** 21 of 21 acceptance criteria pass.
 
-### Session 5 — Sector heatmap (home panel only) — **NEXT**
+### Session 5 — Sector heatmap (home panel only) — **✅ DONE**
 
 **Goal:** Wire the sector heatmap panel to real data using the same pattern proven in Sessions 3 and 4, plus introduce continuous-gradient color machinery.
 
@@ -161,13 +161,13 @@ A multi-session build, each session bounded to fit comfortably in one Claude Cod
 - Account panel
 - Drill-down for individual tickers
 
-### Session 6 — Sector deep-dive screen (planned)
+### Session 6 — Sector deep-dive screen — **✅ DONE**
 
-Press `s` → full-screen sector view. Multi-timeframe relative-strength table (1D, 1W, 1M, 3M, YTD), sortable columns, per-sector sparklines at multiple timescales. First substantive non-home screen — exercises the screen-transition story end-to-end with real data. Reuses the workflow built in Session 5; adds new workflows for the multi-timeframe view if needed.
+Press `s` → full-screen sector view. Multi-timeframe RS table (5D/1M/3M/YTD), sortable columns, per-sector sparklines. First non-home screen with real data.
 
-### Session 7 — Correlation panel real data + deep-dive (planned)
+### Session 7 — Correlation panel real data + deep-dive — **✅ DONE**
 
-Mini correlation matrix on home with real data (replaces remaining mock). Full correlation screen on `c` with adjustable lookback, correlation method (Pearson/Spearman/Kendall), and ticker set. Dash subprocess option for interactive heatmap with mouseover. Removes the last `_refresh_mock_panels` call.
+Home screen correlation panel wired to real data (gradient-colored matrix, lower triangle). Full correlation deep-dive on `c`: adjustable lookback (`[`/`]`), method (`m`: Pearson/Spearman/Kendall), ticker preset (`p`: cross_asset/sectors/mega_cap). Ranked pair list on right side. `_refresh_mock_panels` deleted — home screen fully live. Dash/Plotly interactive heatmap remains as a CLI tool (`scripts/correlations.py --plot`); integration into cockpit as subprocess deferred until after Session 8 and Schwab wiring.
 
 ### Session 8 — Ticker drill-down + polish (planned)
 
@@ -224,14 +224,17 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 
 ## Status snapshot
 
-**Current state:** Sessions 1-4 complete. Two home-screen panels (watchlist + market pulse) are wired to live data via yfinance using the workflow→reactive→worker→renderer pattern. Sector heatmap, correlations, and account panels remain mock. Real data wiring continues in Session 5 with sectors.
+**Current state:** Sessions 1-7 complete. All five home-screen panels are wired to live data. `_refresh_mock_panels` is deleted — the home screen is fully live. Two deep-dive screens exist (`s` for sectors, `c` for correlations). Ready for Session 8 (ticker drill-down + polish).
 
 **Working features:**
 - Existing CLI scripts (`get_data`, `run_backtest`, `correlations`, `plot_static`, `view_stock`, `view_backtest`) — all via `DataService`
 - Cockpit TUI launches, navigates, themes cycle
 - Watchlist panel: live quotes, configurable via `watchlists.yaml`, multi-list cycling on `w`, hot-reload on `r`
 - Market pulse panel: 8 configurable tickers, three display formats (price/index/yield), 30-day sparklines, 30s polling
-- First-flash bug fixed in `PriceCell`/`PctCell` (no false-green flash on first load)
+- Sector heatmap: 11 SPDR ETFs + SPY RS vs SPY, gradient-colored cells, 5-min polling
+- Sector deep-dive (`s`): multi-timeframe RS table (5D/1M/3M/YTD), sortable columns, sparklines, 60s polling
+- Correlation panel: gradient-colored lower-triangle matrix, 5-min polling
+- Correlation deep-dive (`c`): full N×N matrix + ranked pair list; `m` cycles method, `[`/`]` adjusts lookback, `p` cycles preset, 60s polling
 - yfinance data source fully functional including special symbols (`^VIX`, `^TNX`, `DX-Y.NYB`, `CL=F`, `GC=F`)
 - Schwab data source compiles but is unauthenticated (deferred)
 
@@ -240,9 +243,8 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 - `schwab-py` on Python 3.14 (may need workaround when relevant)
 - `pandas-ta` removal from `requirements.txt` (trivial cleanup)
 - Per-room theme assignment (infrastructure ready, not used yet)
-- Sector panel still mock (Session 5)
-- Correlation panel still mock (Session 7)
-- Account panel still placeholder (no session assigned yet — waits on Schwab)
-- `_refresh_mock_panels` shrinks each session as panels go live; eliminated after Session 7
+- Account panel still placeholder — waits on Schwab session
+- Dash/Plotly interactive heatmap (`visualization/plot_correlation.py`) remains CLI-only; cockpit subprocess integration deferred until after Session 8 + Schwab wiring
+- Immediate theme recolor on sector/correlation cells (deferred — updates on next refresh)
 
-**Architecture stability:** No expected refactors. Sessions 5-8 are additive on top of the foundation from Sessions 1-4. The polling pattern proven across watchlist and pulse is the template for sectors (5) and correlations (7); sector and correlation deep-dive screens (6, 7) will be the first non-home screens with substantive content.
+**Architecture stability:** Sessions 5-7 added 5 new workflows, 6 new widgets, 2 new screens, and 2 new config dataclasses — all additive. The workflow→reactive→worker→renderer pattern is proven across 5 panels. Session 8 (drill-down) adds a new screen type (search + detail); Session 9 (Schwab) is a config + data-path validation exercise.
