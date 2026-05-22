@@ -11,6 +11,8 @@ from cockpit.watchlists.schwab_provider import SchwabWatchlistProvider
 from cockpit.watchlists.registry import WatchlistRegistry
 from config.settings import Settings
 
+# Imported lazily in actions to avoid circular imports at module load time
+
 
 class CockpitApp(App):
     """projectAlgo cockpit — terminal-resident market monitoring."""
@@ -24,6 +26,7 @@ class CockpitApp(App):
         Binding("r", "refresh", "Refresh", show=False),
         Binding("w", "cycle_watchlist", "Watchlist", show=False),
         Binding("escape", "pop_screen", "Back", show=False),
+        Binding("slash", "open_ticker_finder", "Find", show=False),
     ]
 
     def __init__(self):
@@ -103,3 +106,24 @@ class CockpitApp(App):
         screen = self.screen
         if hasattr(screen, "action_cycle_watchlist"):
             screen.action_cycle_watchlist()
+
+    def action_open_ticker_finder(self) -> None:
+        """Global '/' binding — open ticker finder from any screen."""
+        from cockpit.screens.ticker_finder_modal import TickerFinderModal
+        from cockpit.screens.ticker_detail import TickerDetailScreen
+
+        # Don't stack a second modal if the finder is already open
+        if isinstance(self.screen, TickerFinderModal):
+            return
+
+        current_is_drill_down = isinstance(self.screen, TickerDetailScreen)
+
+        def _on_dismissed(ticker) -> None:
+            if ticker is None:
+                return
+            if current_is_drill_down:
+                # Pop-then-push so Esc from new drill-down returns to home, not old one
+                self.pop_screen()
+            self.push_screen(TickerDetailScreen(ticker))
+
+        self.push_screen(TickerFinderModal(), _on_dismissed)

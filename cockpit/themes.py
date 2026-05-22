@@ -22,9 +22,9 @@ THEMES_CONFIG: dict[str, dict[str, str]] = {
         "flash_up_bg":       "#87a96b",
         "flash_down_bg":     "#c75450",
         "flash_text":        "#0d0d0d",
-        "gradient_positive": "#c87a1a",
-        "gradient_negative": "#8b1a1a",
-        "gradient_neutral":  "#1a1a1a",
+        "gradient_positive": "#1ba5c0",
+        "gradient_negative": "#d68a2e",
+        "gradient_neutral":  "#3a3530",
     },
     "blue-orange": {
         "background":        "#0d0d0d",
@@ -41,9 +41,9 @@ THEMES_CONFIG: dict[str, dict[str, str]] = {
         "flash_up_bg":       "#4a9eff",
         "flash_down_bg":     "#e89143",
         "flash_text":        "#0d0d0d",
-        "gradient_positive": "#1a5a8b",
-        "gradient_negative": "#c87a1a",
-        "gradient_neutral":  "#1a1a1a",
+        "gradient_positive": "#1ba5c0",
+        "gradient_negative": "#d68a2e",
+        "gradient_neutral":  "#2c333d",
     },
 }
 

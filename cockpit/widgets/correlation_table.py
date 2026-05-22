@@ -12,7 +12,8 @@ from cockpit.themes import THEMES_CONFIG
 
 _EM = "—"
 _CELL_FG = "#f0e0c0"
-_COL_W = 8  # width per cell (including label alignment)
+_COL_W = 7      # width per data column: "{val:>6.2f} " == 7 chars
+_LABEL_W = 7    # row-label column width (corner blank = _LABEL_W + 1 separator space)
 
 
 class CorrelationTable(Widget):
@@ -39,16 +40,19 @@ class CorrelationTable(Widget):
         matrix = snapshot.matrix
 
         lines = []
+        corner_w = _LABEL_W + 1  # row label + the separator space after it
 
-        # Header row
-        header = f"[{text_dim}]{'':8}" + "".join(f"{t:>{_COL_W}}" for t in tickers) + "[/]"
+        # Header row — each column header truncated to fit _COL_W with a leading gap
+        header = f"[{text_dim}]{'':{corner_w}}" + "".join(
+            f"{t[:_COL_W - 1]:>{_COL_W}}" for t in tickers
+        ) + "[/]"
         lines.append(header)
 
-        sep_width = 8 + len(tickers) * _COL_W
+        sep_width = corner_w + len(tickers) * _COL_W
         lines.append(f"[{text_dim}]{'─' * sep_width}[/]")
 
         for row_t in tickers:
-            row = f"[{text_dim}]{row_t:<7}[/] "
+            row = f"[{text_dim}]{row_t[:_LABEL_W]:<{_LABEL_W}}[/] "
             for col_t in tickers:
                 val = matrix.loc[row_t, col_t]
                 formatted = f"{val:>6.2f} "

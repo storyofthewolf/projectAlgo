@@ -71,11 +71,11 @@ class HomeScreen(Screen):
         with PanelFrame("WATCHLIST", id="panel-watchlist"):
             yield WatchlistPanel(id="watchlist-widget")
 
-        with Horizontal(id="bottom-row"):
-            with PanelFrame("SECTOR HEATMAP", id="panel-sectors"):
-                yield SectorPanel(id="sectors-panel")
-            with PanelFrame("CORRELATIONS", id="panel-corr"):
-                yield CorrelationPanel(id="corr-panel")
+        with PanelFrame("SECTORS", id="panel-sectors"):
+            yield SectorPanel(id="sectors-panel")
+
+        with PanelFrame("CORRELATIONS", id="panel-corr"):
+            yield CorrelationPanel(id="corr-panel")
 
         yield CommandFooter(_COMMANDS, id="command-footer")
         yield Static(
@@ -111,7 +111,7 @@ class HomeScreen(Screen):
 
     # ── Watchlist worker ──────────────────────────────────────────────────
 
-    @work(exclusive=True, thread=True)
+    @work(exclusive=True, group="watchlist", thread=True)
     def refresh_watchlist(self) -> None:
         registry = self.app.watchlist_registry
         provider = self.active_provider
@@ -148,7 +148,7 @@ class HomeScreen(Screen):
 
     # ── Pulse worker ──────────────────────────────────────────────────────
 
-    @work(exclusive=True, thread=True)
+    @work(exclusive=True, group="pulse", thread=True)
     def refresh_pulse(self) -> None:
         snap = build_pulse_snapshot(self.app.settings.pulse_tickers)
         self.app.call_from_thread(self._set_pulse_snapshot, snap)

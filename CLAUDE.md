@@ -107,8 +107,9 @@ python -m scripts.quote AAPL MSFT ISRG    # live quotes
 # Static candlestick chart with indicators
 python -m visualization.plot_static -t ISRG -s 2023-01-01 -e 2024-06-11 -i 1d --indicators "sma:20,50;rsi:14"
 
-# Interactive stock viewer (Dash app)
+# Interactive stock viewer (Dash app) — candles + SMA overlay + volume + RSI subplot
 python -m visualization.view_stock
+python -m visualization.view_stock --ticker NVDA --interval 1d --start 2023-01-01 --port 8050
 
 # Backtest results dashboard
 python visualization/view_backtest.py data/backtest_results/<results_file>.pkl
@@ -157,7 +158,7 @@ Sources  (yfinance, Schwab)
 | Module | Responsibility |
 |---|---|
 | `marketdata/service.py` | **`DataService`** — unified entry point for all data needs. Handles cache lookup, source selection, and fallback. Use `get_data_service()` for the default instance. |
-| `marketdata/cache.py` | **`LocalCache`** — CSV cache. Files named `{TICKER}_{interval}_{YYYYMMDD}_{YYYYMMDD}.csv`. |
+| `marketdata/cache.py` | **`LocalCache`** — CSV cache, one canonical file per ticker+interval (`{TICKER}_{interval}.csv`). `get()` serves any sub-window the stored file covers (with a few-days grace at the edges for non-trading days); `put()` merges new data, widening the stored range. Overlapping/repeat requests hit the cache. Legacy dated files (`{TICKER}_{interval}_{start}_{end}.csv`) are inert. |
 | `marketdata/sources/yfinance_source.py` | **`YFinanceSource`** — yfinance integration; supports `1d`, `1wk`, `1mo`. |
 | `marketdata/sources/schwab_source.py` | **`SchwabSource`** — Schwab integration; supports daily + intraday. `is_available()` returns False when unauthenticated. |
 | `marketdata/sources/base.py` | **`MarketDataSource`** ABC — defines the interface all sources must implement. |
@@ -186,7 +187,7 @@ Sources  (yfinance, Schwab)
 | `cockpit/screens/help.py` | `HelpScreen` — keyboard reference; Esc to return. |
 | `cockpit/widgets/watchlist_panel.py` | `WatchlistPanel`, `WatchlistRow` — live quotes with PriceCell flash. |
 | `cockpit/widgets/market_pulse_panel.py` | `MarketPulsePanel`, `PulseCell` — 4×2 grid; three display formats (price/$, index, yield/3dp%). |
-| `cockpit/widgets/sector_panel.py` | `SectorPanel`, `SectorCell` — 3×4 grid; continuous-gradient backgrounds by RS value. |
+| `cockpit/widgets/sector_panel.py` | `SectorPanel`, `SectorCell` — single-row strip of 12 cells; continuous-gradient backgrounds by RS value. |
 | `cockpit/widgets/sector_table.py` | `SectorTable` — Rich-markup table; column focus, sort arrows, gradient cells. |
 | `cockpit/widgets/panel_frame.py` | `PanelFrame(Container)` — border + title wrapper. |
 | `cockpit/widgets/price_cell.py` | `PriceCell` — flashes on price change, settles to directional color. |
@@ -254,6 +255,32 @@ python -m scripts.correlations -t AAPL MSFT NVDA --pairs
 
 `visualization/plot_correlation.py` — `plot_correlation_heatmap(corr)` renders an annotated Plotly heatmap (red → white → green, −1 to +1).
 
+## Cross-Sectional Screening
+
+The screener scans a universe of tickers, computes one metric row per ticker, and lets you filter/rank with a pandas-style query — built for cheap hypothesis testing.
+
+```bash
+# Scan a watchlist; keep tickers trading above their 200-day SMA, rank by 1-month return
+python -m scripts.scan default -q "close > sma200" --rank "ret_1m desc"
+
+# Scan the whole S&P 500 index (~500 fetches; minutes on a cold cache)
+python -m scripts.scan sp500 -q "rsi < 30 and close > sma200" --rank rs_spy_1m --limit 25
+
+# Ad-hoc universe; arithmetic between metrics in the query
+python -m scripts.scan -t AAPL MSFT NVDA GOOGL -q "close > sma50 * 1.02 and ret_1m > ret_3m"
+
+# Volume spike + outperforming SPY
+python -m scripts.scan default -q "vol_ratio > 1.5 and rs_spy_1m > 0" --rank rs_spy_1m
+
+# List available metric columns
+python -m scripts.scan --list-metrics
+```
+
+- `analysis/screener.py` — **`scan_universe(tickers, ...)`** returns a `ScanResult(metrics: pd.DataFrame, failed: dict)`. One row per ticker; per-ticker failure tolerance (a bad ticker is recorded in `failed`, never kills the scan). SPY is always fetched as the `rs_spy_1m` benchmark.
+- `scripts/scan.py` — the CLI. Universe resolution order: an **index universe** (`universes/<name>.txt`, e.g. `sp500`) is checked first, then a **watchlist** name (`watchlists.yaml`), then `-t SYM ...` ad-hoc overrides both. `-q` filters via `DataFrame.query()` (supports arithmetic and metric-vs-metric comparisons, e.g. `ret_1m > ret_3m`); `--rank`, `--columns`, `--limit` shape the output.
+- `universes/*.txt` — index constituent lists, one ticker per line (`#` comments and blanks ignored). `universes/sp500.txt` ships with the S&P 500; class-share tickers use yfinance format (`BRK-B`, not `BRK.B`). Regenerate by hand from Wikipedia when the index changes.
+- Metric columns: `close`, `sma20/50/200`, `pct_sma20/50/200`, `rsi`, `rsi_regime`, `ret_5d/1m/3m/ytd`, `volume`, `avg_vol`, `vol_ratio`, `rs_spy_1m`.
+
 ## Cockpit TUI
 
 The cockpit is a Textual-based terminal dashboard (`cockpit/`) that monitors markets live using yfinance data.
@@ -297,7 +324,7 @@ cockpit/
     sparkline.py      Sparkline — 8-level unicode block sparklines
     watchlist_panel.py  WatchlistPanel, WatchlistRow — live quotes, hot-reload from watchlists.yaml
     market_pulse_panel.py  MarketPulsePanel, PulseCell — 4×2 grid; price/index/yield formats
-    sector_panel.py   SectorPanel, SectorCell — 3×4 grid; gradient backgrounds by RS
+    sector_panel.py   SectorPanel, SectorCell — single-row strip; gradient backgrounds by RS
     sector_table.py   SectorTable — Rich-markup table; column focus, sort, gradient cells
     correlation_panel.py  CorrelationPanel — home screen lower-triangle + diagonal matrix, gradient cells
     correlation_table.py  CorrelationTable — deep-dive full NxN matrix, Rich-markup rendering
@@ -313,7 +340,7 @@ cockpit/
 |-------|------|---------|
 | Market pulse (4×2 grid) | 8 tickers: SPY, QQQ, IWM, VIX, 10Y, DXY, Oil, Gold | 30s |
 | Watchlist | Configurable via `watchlists.yaml`; cycle with `W` | 30s |
-| Sector heatmap | 11 SPDR ETFs RS vs SPY; gradient backgrounds | 5 min |
+| Sector strip | 11 SPDR ETFs RS vs SPY; single-row gradient cells | 5 min |
 | Sector deep-dive (on `S`) | 12 rows × N timeframes; SPY pinned at top | 60s |
 | Correlations (home + deep-dive on `C`) | Configurable ticker list, method (Pearson/Spearman/Kendall), lookback | 5 min (home); 60s (deep-dive) |
 
@@ -386,3 +413,4 @@ Follow the established workflow pattern:
 - `preferred_source = "yfinance"` in `cockpit.toml` until Schwab OAuth is configured
 - Sector and correlation cell gradient colors update on the next polling refresh after a theme change, not immediately
 - Dash/Plotly interactive heatmap remains available only as a CLI tool (`python -m scripts.correlations --plot`); cockpit subprocess integration deferred until after Session 8
+- The ticker drill-down (`/`) shows a coarse in-terminal Plotext chart (close + SMA overlays); pressing `P` launches `view_stock.py` as a detached subprocess on port 8050 for the full interactive Plotly chart. The Dash server is not killed when the cockpit exits.

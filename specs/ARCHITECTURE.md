@@ -32,8 +32,6 @@ Adding a new source means adding one implementation of `MarketDataSource` and re
 
 A `Stock` is a data container with a ticker and optional price history. It does not know how to download itself, plot itself, or compute indicators. Those are jobs for other layers.
 
-This was deliberately fixed in Session 1; the previous `Stock.download_data()` pattern violated single-responsibility and is gone.
-
 FORTRAN parallel: derived types hold state; subroutines act on them. You wouldn't bolt `read_netcdf_file()` onto a `grid_t` type.
 
 ### 5. Computation is stateless
@@ -50,13 +48,13 @@ FORTRAN parallel: workflows are the experiment driver scripts (messy glue that l
 
 ### 7. Text-file configuration over UI menus
 
-`cockpit.toml` for app settings. `watchlists.yaml` (future) for watchlists. Other config files as needed. All hand-editable in vim. The owner prefers typing to clicking.
+`cockpit.toml` for app settings. `watchlists.yaml` for watchlists. `universes/*.txt` for index constituent lists. All hand-editable in vim. The owner prefers typing to clicking.
 
-There is no "settings UI" inside the cockpit. To change behavior, edit the file and restart (or press `r` for hot-reload where applicable).
+There is no "settings UI" inside the cockpit. To change behavior, edit the file and restart (or press `R` for hot-reload where applicable).
 
 ### 8. Terminal-first, with browser for deep dives
 
-The primary UI is the Textual TUI. Browser-based Dash apps are reserved for *exploratory deep-dives* where mouse interaction adds value (zooming a multi-year candlestick, hovering correlation cells in a 15×15 heatmap). The cockpit launches Dash deep-dives as subprocesses; they communicate via files on disk, not shared memory.
+The primary UI is the Textual TUI. Browser-based Dash apps are reserved for *exploratory deep-dives* where mouse interaction adds value (zooming a multi-year candlestick, hovering correlation cells in a 15×15 heatmap). The cockpit launches Dash deep-dives as subprocesses; they communicate by the cockpit passing arguments on launch, not shared memory.
 
 ### 9. Information density over whitespace
 
@@ -66,7 +64,7 @@ The cockpit should feel *alive*. Refresh updates individual cells with color fla
 
 ### 10. Python all the way down
 
-No C/C++/Rust extensions. NumPy and pandas already use compiled BLAS/LAPACK for hot numerical paths. If a future bottleneck materializes (unlikely for personal-scale workloads), the escape ladder is: vectorize → Numba JIT → Cython → Polars → maybe-someday-pybind11. Never preemptively.
+No C/C++/Rust extensions. NumPy and pandas already use compiled BLAS/LAPACK for hot numerical paths. If a future bottleneck materializes (unlikely for personal-scale workloads), the escape ladder is: vectorize → Numba JIT → Cython → Polars. Never preemptively.
 
 Rationale: flow-state development requires fast iteration. Python's edit-and-rerun cycle beats compiled-language toolchains for a project where the goal is the owner's own learning, not machine performance.
 
@@ -83,7 +81,7 @@ Rationale: flow-state development requires fast iteration. Python's edit-and-rer
 **Key types:**
 - `MarketDataSource` (ABC) — interface every source implements
 - `DataService` — the public entry point; handles routing and caching
-- `LocalCache` — CSV-based local cache (Parquet upgrade possible later)
+- `LocalCache` — CSV-based local cache; one canonical file per `(ticker, interval)`, smart range-coverage merging on put
 - `YFinanceSource`, `SchwabSource` — implementations
 
 **Public API:**
@@ -97,9 +95,9 @@ Rationale: flow-state development requires fast iteration. Python's edit-and-rer
 2. If preferred source doesn't support the interval → fall back
 3. If preferred source is unavailable (e.g., expired token) → fall back with warning log
 
-**Cache logic:** exact-match on `(ticker, interval, start, end)`. Filename format `{TICKER}_{interval}_{YYYYMMDD}_{YYYYMMDD}.csv` (unchanged from original codebase). No smart range-coverage matching yet — possible future enhancement.
+**Cache logic:** `{TICKER}_{interval}.csv` canonical filename. `get()` serves any sub-window the stored file covers (with a few-day grace for non-trading days); `put()` merges and widens. Legacy dated files are inert. Overlapping/repeat requests hit the cache.
 
-**Canonical DataFrame shape:** DatetimeIndex; columns `['Open', 'High', 'Low', 'Close', 'Volume']` in that order; float64 numeric except Volume which is int64. All sources must return this shape.
+**Canonical DataFrame shape:** DatetimeIndex; columns `['Open', 'High', 'Low', 'Close', 'Volume']` in that order; float64 numeric except Volume which is int64.
 
 ### Domain models
 
@@ -108,9 +106,9 @@ Rationale: flow-state development requires fast iteration. Python's edit-and-rer
 **Responsibility:** Passive data containers that define the vocabulary of the system. No I/O, no computation, no behavior beyond simple property queries.
 
 **Key types:**
-- `Stock` (in `core/security.py`) — ticker + optional `historical_data` DataFrame + metadata dict
-- `Quote` (in `core/quote.py`) — frozen dataclass: ticker, price, timestamp, optional bid/ask/volume/previous_close, computed `change` and `change_pct` properties
-- `Transaction` (in `core/transaction.py`) — BUY/SELL records with slippage-adjusted price, shares, cost basis, realized P&L; produced by `Backtester`
+- `Stock` (`core/security.py`) — ticker + optional `historical_data` DataFrame + metadata dict
+- `Quote` (`core/quote.py`) — frozen dataclass: ticker, price, timestamp, optional bid/ask/volume/previous_close, computed `change` and `change_pct` properties
+- `Transaction` (`core/transaction.py`) — BUY/SELL records with slippage-adjusted price, shares, cost basis, realized P&L; produced by `Backtester`
 
 Future additions: `Option`, `OptionChain`, `Position`, `Portfolio`.
 
@@ -121,9 +119,10 @@ Future additions: `Option`, `OptionChain`, `Position`, `Portfolio`.
 **Responsibility:** Stateless computational functions on market data.
 
 **Current modules:**
-- `technical_analysis.py` — `calculate_sma`, `calculate_rsi`, etc.
+- `technical_analysis.py` — `calculate_sma`, `calculate_rsi`
 - `performance_metrics.py` — Sharpe, drawdown, win rate, profit factor
-- `market_analysis.py` — `load_aligned_returns`, `calculate_correlation_matrix`, `summarize_correlations`
+- `market_analysis.py` — `load_aligned_returns`, `calculate_relative_strength`, `calculate_correlation_matrix`, `summarize_correlations`
+- `screener.py` — `scan_universe(tickers, ...)` → `ScanResult(metrics, failed)`; per-ticker failure tolerance; 13 metric columns (`close`, `sma20/50/200`, `pct_sma20/50/200`, `rsi`, `rsi_regime`, `ret_5d/1m/3m/ytd`, `volume`, `avg_vol`, `vol_ratio`, `rs_spy_1m`)
 
 **Conventions:** functions take pandas Series/DataFrames, return same. No state. No side effects. Same function callable from cockpit, scripts, Dash apps.
 
@@ -153,40 +152,32 @@ Currently long-only, one-position-at-a-time. More sophisticated portfolio backte
 - `schwab_client.py` — OAuth singleton, auth token management
 - `account.py` — balances, positions, account summary
 
-`broker/market_data.py` was removed in Session 1 (Schwab market data moved into `marketdata/sources/schwab_source.py`).
-
 ### Workflows
 
 **Package:** `workflows/`
 
 **Responsibility:** Orchestration. Compose data fetching + analysis into typed snapshots that the UI consumes.
 
-**Pattern:** each workflow defines a snapshot dataclass and exposes a function that returns it.
+**Pattern:** each workflow defines a snapshot dataclass and exposes a `build_<name>_snapshot(config, data_service=None)` function. `data_service` defaults to `get_data_service()` so HomeScreen never imports the data layer directly. Per-cell failure tolerance: one bad ticker fails locally, panel still renders.
 
 **Existing workflows:**
-- `WatchlistSnapshot` — quotes + recent history for a list of tickers (Session 3, built)
-- `MarketPulseSnapshot` — major index quotes + sparklines for 8 configurable tickers (Session 4, built)
 
-**Planned workflows:**
-- `SectorSnapshot` — 11 SPDR sector ETFs with relative strength vs SPY (Session 5)
-- `CorrelationSnapshot` — correlation matrix + ranked pair list (Session 7)
-- `BacktestResult` — equity curve + trades + metrics (already implicit; would formalize)
-- `MorningBriefing` — composite snapshot for a "what to know this morning" view (future)
+| Module | Snapshot | Purpose |
+|--------|----------|---------|
+| `watchlist_snapshot.py` | `WatchlistSnapshot` | Live quotes + recent history for a list of tickers |
+| `market_pulse_snapshot.py` | `PulseSnapshot`, `PulseTicker` | 8 configurable macro tickers with sparklines |
+| `sector_snapshot.py` | `SectorSnapshot`, `SectorCell` | 11 SPDR ETF RS vs SPY, gradient cells |
+| `multi_timeframe_sector_snapshot.py` | `MultiTimeframeSectorSnapshot`, `SectorRow`, `TimeframeRS` | RS across configurable timeframes for sector deep-dive |
+| `correlation_snapshot.py` | `CorrelationSnapshot`, `RankedPair` | Pairwise correlation matrix + ranked pairs |
+| `ticker_detail_snapshot.py` | `TickerDetailSnapshot`, `IndicatorReadout`, `TickerStats` | Full snapshot for ticker drill-down: quote + OHLC + SMAs + RSI + stats |
 
 Workflows are the **single source of truth** for "how is this computed." If the cockpit, a Dash app, and a CLI command all want a sector snapshot, they all call the same workflow.
-
-The Session 3-4 workflows established the canonical pattern:
-1. Module-level snapshot dataclass(es) — pure data, no methods
-2. `build_<name>_snapshot(config, data_service=None, now=None) -> Snapshot` function
-3. Optional `data_service` parameter (defaults to `get_data_service()`) so HomeScreen never needs to import the data layer directly
-4. Per-cell error handling: one bad ticker fails locally, panel still renders
-5. Panel-level error field for catastrophic failures (e.g., benchmark ticker unavailable in Session 5)
 
 ### Visualization
 
 **Package:** `visualization/`
 
-**Responsibility:** Static plots (mplfinance) and Dash apps. Pre-cockpit infrastructure that still works — `view_backtest.py` in particular is a useful Dash dashboard for backtest results.
+**Responsibility:** Static plots (mplfinance) and Dash apps. Pre-cockpit infrastructure that still works — `view_backtest.py` in particular is a useful Dash dashboard for backtest results. `view_stock.py` is launched as a detached subprocess from the ticker drill-down's `P` key.
 
 **Future Dash apps** (spawned from cockpit as subprocesses) will live alongside these or in a dedicated `viz/` package.
 
@@ -197,21 +188,54 @@ The Session 3-4 workflows established the canonical pattern:
 **Responsibility:** The terminal-resident TUI built with Textual. The primary UI for monitoring.
 
 **Structure:**
-- `app.py` — `CockpitApp` (Textual `App` subclass)
-- `themes.py` — color palette definitions, theme registration
+- `app.py` — `CockpitApp` (Textual `App` subclass); global `slash` binding + `action_open_ticker_finder()` with pop-then-push drill-down logic
+- `themes.py` — color palette definitions, theme registration (`THEMES_CONFIG`, `THEMES`, `THEME_NAMES`)
 - `styles.tcss` — Textual CSS using theme variables
-- `bindings.py` — shared keyboard binding definitions
-- `format.py` — numeric formatting helpers (`fmt_price`, `fmt_pct`, `fmt_volume`, `fmt_change`, `fmt_arrow`, `fmt_ticker`)
-- `mock_data.py` — temporary hardcoded data (deleted as real data wiring lands)
-- `screens/` — `home.py`, `help.py`, (future) `sectors.py`, `correlations.py`, `ticker_detail.py`
-- `widgets/` — reusable atoms: `Sparkline`, `PriceCell`, `PctCell`, `PanelFrame`, `ClockHeader`, `CommandFooter`
+- `format.py` — numeric formatting helpers (`fmt_price`, `fmt_pct`, `fmt_volume`, `fmt_change`, `fmt_arrow`, `fmt_ticker`) plus gradient color helpers (`relative_strength_to_color`, `correlation_to_color`, `_gradient_color`)
+- `mock_data.py` — deprecated, retained as empty placeholder
+- `screens/` — screen modules (see table below)
+- `widgets/` — reusable atoms (see table below)
+- `watchlists/` — `yaml_provider.py`, `schwab_provider.py`, `registry.py`, `base.py`
 
-**Theme system:** dicts in `themes.py` define palettes. Active theme from `cockpit.toml`. Two themes currently: `claude-warm` (default, warm orange/cream on near-black) and `blue-orange` (colorblind-friendly, blue-up / orange-down). Cycle via `t`. Per-screen theme override is a planned future extension; infrastructure supports it.
+**Screens:**
 
-Starting in Session 5, themes also define a three-color gradient (`gradient_positive`, `gradient_negative`, `gradient_neutral`) used by the sector heatmap for continuous-color magnitude encoding. The gradient is interpolated in linear RGB by `cockpit/format.py::relative_strength_to_color()`. This is the first cockpit visual that uses a continuous color scale rather than binary up/down state.
+| Module | Class | Entry / Exit |
+|--------|-------|-------------|
+| `screens/home.py` | `HomeScreen` | App default |
+| `screens/help.py` | `HelpScreen` | `?` / `Esc` |
+| `screens/sectors.py` | `SectorDeepDiveScreen` | `S` / `Esc` |
+| `screens/correlations.py` | `CorrelationDeepDiveScreen` | `C` / `Esc` |
+| `screens/ticker_finder_modal.py` | `TickerFinderModal` | `/` (modal) |
+| `screens/ticker_detail.py` | `TickerDetailScreen` | `/` + ticker enter / `Esc` |
+
+**Widgets:**
+
+| Module | Class | Purpose |
+|--------|-------|---------|
+| `widgets/clock_header.py` | `ClockHeader` | ET time, ticks every second, shows market state |
+| `widgets/command_footer.py` | `CommandFooter` | `[KEY]LABEL` footer bar |
+| `widgets/panel_frame.py` | `PanelFrame` | Border + title wrapper |
+| `widgets/price_cell.py` | `PriceCell` | Flashes on price change, settles to directional color |
+| `widgets/pct_cell.py` | `PctCell` | Same flash pattern as PriceCell |
+| `widgets/sparkline.py` | `Sparkline` | 8-level unicode block sparklines |
+| `widgets/watchlist_panel.py` | `WatchlistPanel`, `WatchlistRow` | Live quotes, hot-reload |
+| `widgets/market_pulse_panel.py` | `MarketPulsePanel`, `PulseCell` | 4×2 grid; price/index/yield formats |
+| `widgets/sector_panel.py` | `SectorPanel`, `SectorCell` | Single-row strip; gradient backgrounds |
+| `widgets/sector_table.py` | `SectorTable` | Rich-markup table; column focus, sort, gradient cells |
+| `widgets/correlation_panel.py` | `CorrelationPanel` | Home lower-triangle matrix, gradient cells |
+| `widgets/correlation_table.py` | `CorrelationTable` | Deep-dive full N×N matrix |
+| `widgets/ranked_pair_list.py` | `RankedPairList` | Deep-dive pairs ranked high→low, text-color gradient |
+| `widgets/ticker_header.py` | `TickerHeader` | Three-row header: ticker/name, price/change, day/52w range |
+| `widgets/ohlc_table.py` | `OHLCTable` | Scrollable OHLC history, newest-first |
+| `widgets/indicator_panel.py` | `IndicatorPanel` | SMA readouts with vs-price %, RSI + regime label |
+| `widgets/price_chart.py` | `PriceChart` | Plotext in-terminal close-price + SMA overlays |
+
+**Theme system:** dicts in `themes.py` define palettes. Active theme from `cockpit.toml`. Two themes currently: `claude-warm` (default, warm orange/cream on near-black) and `blue-orange` (colorblind-friendly). Cycle via `T`. `CockpitApp.get_css_variables()` is overridden to inject custom CSS variables (`$text-dim`, `$positive`, `$negative`, `$border`, `$gradient-positive`, `$gradient-negative`, `$gradient-neutral`, etc.) before every stylesheet parse — required because Textual resolves CSS vars from the default theme during first parse, which doesn't include our custom vars.
+
+Themes also define a three-color gradient (`gradient_positive`, `gradient_negative`, `gradient_neutral`) used by sector, correlation, and indicator widgets for continuous-color magnitude encoding. Interpolated in linear RGB by `cockpit/format.py::_gradient_color()`.
 
 **Numeric formatting rules:**
-- Tickers all-caps
+- Tickers: all-caps
 - Prices: 2 decimals always (`187.42`)
 - Percentages: signed, 2 decimals, `%` suffix (`+0.66%`)
 - Volume: compact (`42.1M`, `1.2B`, `987K`)
@@ -220,9 +244,29 @@ Starting in Session 5, themes also define a three-color gradient (`gradient_posi
 - Sparklines: 8-level Unicode blocks (`▁▂▃▄▅▆▇█`)
 - Direction: `▲ ▼ —`
 
-**Layout target:** 120×30 minimum, 160×50 ideal. Below minimum: friendly "please resize" overlay.
+**Layout target:** 120×30 minimum, 160×50 ideal. Below minimum: friendly resize overlay.
 
-**Keyboard model:** one keystroke per intent. Current global bindings: `q` quit, `r` refresh, `?` help, `t` theme cycle, `Esc` back, `Tab`/`Shift+Tab` panel focus. Reserved for future: `a` account, `s` sectors, `c` correlations, `w` watchlists, `/` find ticker.
+**Keyboard model:**
+
+| Key | Action | Scope |
+|-----|--------|-------|
+| `Q` | Quit | global |
+| `R` | Refresh data + reload config | global |
+| `?` | Help screen | global |
+| `T` | Cycle theme | global |
+| `/` | Find ticker (drill-down) | global |
+| `W` | Cycle watchlist | home |
+| `S` | Open sector deep-dive | home |
+| `C` | Open correlation deep-dive | home |
+| `Esc` | Return to previous screen | all non-home |
+| `Tab` / `Shift+Tab` | Focus next / previous panel | all |
+| `← →` | Move column focus | sector deep-dive |
+| `Enter` | Sort by focused column | sector deep-dive |
+| `M` | Cycle method | correlation deep-dive |
+| `[` / `]` | Decrease / increase lookback | correlation deep-dive |
+| `P` | Cycle preset / open Dash chart | correlation deep-dive / ticker drill-down |
+| `J` / `↓` | Scroll down | ticker drill-down |
+| `K` / `↑` | Scroll up | ticker drill-down |
 
 ### Configuration
 
@@ -230,9 +274,21 @@ Starting in Session 5, themes also define a three-color gradient (`gradient_posi
 
 **Files:**
 - `cockpit.toml` (at project root) — app-wide settings
-- `watchlists.yaml` (at project root, added Session 3) — watchlist definitions
+- `watchlists.yaml` (at project root) — watchlist definitions
+- `universes/*.txt` — index constituent lists, one ticker per line
 
-**Module:** `config/settings.py` — `Settings` frozen dataclass with `load()` classmethod. Resolves paths relative to project root (not CWD). Single source of truth — no other code reads the TOML directly.
+**Module:** `config/settings.py` — `Settings` frozen dataclass with `load()` classmethod. Resolves paths relative to project root. Single source of truth.
+
+**Config dataclasses:**
+
+| Class | TOML section | Purpose |
+|-------|-------------|---------|
+| `DataConfig` | `[data]` | Cache directory, preferred source |
+| `SectorConfig` | `[sectors]` | Home sector panel: lookback, comparison ticker, intensity |
+| `SectorDeepDiveConfig` | `[sector_deep_dive]` | Timeframe list, sort defaults, refresh cadence |
+| `CorrelationConfig` | `[correlations]` | Home panel: tickers, method, lookback, refresh |
+| `CorrelationDeepDiveConfig` | `[correlation_deep_dive]` | Deep-dive: presets, method, lookback options, refresh |
+| `TickerDetailConfig` | `[ticker_detail]` | Drill-down: SMA windows, RSI config, display rows, refresh |
 
 ### Scripts
 
@@ -241,30 +297,37 @@ Starting in Session 5, themes also define a three-color gradient (`gradient_posi
 **Responsibility:** CLI entry points. Not importable as library code.
 
 **Current entry points:**
-- `get_data` — fetch and cache OHLCV
-- `run_backtest` — run a backtest
-- `correlations` — pairwise correlation matrix
-- `account` (Schwab-dependent) — account summary
-- `quote` (Schwab-dependent) — live quotes
-- `inspect_pickle` — inspect a saved backtest result
-- `cockpit` (added Session 2) — launches the TUI
-- `schwab_auth` — Schwab OAuth flow
+
+| Script | Purpose |
+|--------|---------|
+| `get_data.py` | Fetch and cache OHLCV |
+| `run_backtest.py` | Run a backtest |
+| `correlations.py` | Pairwise correlation matrix CLI + optional Plotly heatmap |
+| `scan.py` | Cross-sectional screener: universe scan with filter/rank |
+| `account.py` | Schwab account summary |
+| `quote.py` | Schwab live quotes |
+| `inspect_pickle.py` | Inspect a saved backtest result |
+| `cockpit.py` | Launch the TUI |
+| `schwab_auth.py` | Schwab OAuth flow |
+| `clean_data.py` | Cache maintenance utility |
+| `run_analysis.py` | Market analysis CLI helper |
 
 ---
 
-## File layout (current state, post-Session-4)
+## File layout (current state, post-Session-8)
 
 ```
 projectAlgo/
 ├── cockpit.toml                  # app config
+├── watchlists.yaml               # watchlist definitions
 ├── README.md
 ├── CLAUDE.md
+├── DEVELOPER_NOTES.md
 ├── requirements.txt
-├── pyproject.toml                # if present
 │
 ├── config/
 │   ├── __init__.py
-│   └── settings.py
+│   └── settings.py               # Settings + all config dataclasses
 │
 ├── marketdata/                   # the data layer
 │   ├── __init__.py
@@ -290,14 +353,19 @@ projectAlgo/
 │
 ├── workflows/                    # orchestration layer
 │   ├── __init__.py
-│   ├── watchlist_snapshot.py     # Session 3
-│   └── market_pulse_snapshot.py  # Session 4
+│   ├── watchlist_snapshot.py
+│   ├── market_pulse_snapshot.py
+│   ├── sector_snapshot.py
+│   ├── multi_timeframe_sector_snapshot.py
+│   ├── correlation_snapshot.py
+│   └── ticker_detail_snapshot.py
 │
 ├── analysis/                     # stateless computation
 │   ├── __init__.py
 │   ├── technical_analysis.py
 │   ├── performance_metrics.py
-│   └── market_analysis.py
+│   ├── market_analysis.py
+│   └── screener.py               # ScanResult, scan_universe()
 │
 ├── strategies/
 │   ├── __init__.py
@@ -311,8 +379,9 @@ projectAlgo/
 ├── visualization/                # static plots + Dash apps
 │   ├── __init__.py
 │   ├── plot_static.py
-│   ├── view_stock.py
+│   ├── view_stock.py             # launched as subprocess by ticker drill-down P key
 │   ├── view_backtest.py
+│   ├── plot_correlation.py       # Plotly heatmap (CLI only)
 │   └── indicator_plot_configs.py
 │
 ├── cockpit/                      # the TUI
@@ -320,63 +389,75 @@ projectAlgo/
 │   ├── app.py
 │   ├── themes.py
 │   ├── styles.tcss
-│   ├── bindings.py
 │   ├── format.py
-│   ├── watchlists.py             # Session 3
-│   ├── mock_data.py              # temporary; deletes as real data lands
+│   ├── mock_data.py              # deprecated, retained as placeholder
 │   ├── screens/
 │   │   ├── __init__.py
 │   │   ├── home.py
-│   │   └── help.py
-│   └── widgets/
+│   │   ├── help.py
+│   │   ├── sectors.py
+│   │   ├── correlations.py
+│   │   ├── ticker_finder_modal.py
+│   │   └── ticker_detail.py
+│   ├── widgets/
+│   │   ├── __init__.py
+│   │   ├── clock_header.py
+│   │   ├── command_footer.py
+│   │   ├── panel_frame.py
+│   │   ├── price_cell.py
+│   │   ├── pct_cell.py
+│   │   ├── sparkline.py
+│   │   ├── watchlist_panel.py
+│   │   ├── market_pulse_panel.py
+│   │   ├── sector_panel.py
+│   │   ├── sector_table.py
+│   │   ├── correlation_panel.py
+│   │   ├── correlation_table.py
+│   │   ├── ranked_pair_list.py
+│   │   ├── ticker_header.py
+│   │   ├── ohlc_table.py
+│   │   ├── indicator_panel.py
+│   │   └── price_chart.py
+│   └── watchlists/
 │       ├── __init__.py
-│       ├── sparkline.py
-│       ├── price_cell.py
-│       ├── pct_cell.py
-│       ├── panel_frame.py
-│       ├── clock_header.py
-│       ├── command_footer.py
-│       ├── watchlist_panel.py    # Session 3
-│       └── market_pulse_panel.py # Session 4
+│       ├── base.py
+│       ├── registry.py
+│       ├── yaml_provider.py
+│       └── schwab_provider.py
 │
 ├── scripts/                      # CLI entry points
 │   ├── __init__.py
 │   ├── get_data.py
 │   ├── run_backtest.py
 │   ├── correlations.py
+│   ├── scan.py                   # cross-sectional screener CLI
 │   ├── account.py
 │   ├── quote.py
 │   ├── inspect_pickle.py
 │   ├── cockpit.py
-│   └── schwab_auth.py
+│   ├── schwab_auth.py
+│   ├── clean_data.py
+│   └── run_analysis.py
+│
+├── universes/                    # index constituent lists
+│   └── sp500.txt
 │
 ├── specs/                        # design documents
 │   ├── ROADMAP.md
 │   ├── ARCHITECTURE.md           # this file
 │   ├── session-1-spec.md
-│   ├── session-2-spec.md
-│   ├── session-3-spec.md
-│   ├── session-4-spec.md
-│   └── session-5-spec.md
+│   ├── ...
+│   └── session-8-spec.md
 │
 ├── notes/                        # session debriefs
 │   ├── session-1-debrief.md
-│   ├── session-2-debrief.md
-│   ├── session-3-debrief.md
-│   └── session-4-debrief.md
+│   ├── ...
+│   └── session-8-debrief.md
 │
 └── data/                         # storage (not code)
     ├── historical_data/          # cached CSV files
     └── backtest_results/         # pickled backtest bundles
 ```
-
-**Future additions:**
-- `workflows/sector_snapshot.py` and `cockpit/widgets/sector_panel.py` — Session 5
-- `cockpit/screens/sectors.py` — Session 6 (sector deep-dive)
-- `workflows/correlation_snapshot.py` and `cockpit/screens/correlations.py` — Session 7
-- `cockpit/screens/ticker_detail.py` — Session 8
-- `options/` package — far future, when options room is built
-- Per-screen theme assignment infrastructure use — future
 
 ---
 
@@ -388,17 +469,17 @@ The architecture is designed so that adding a new feature follows a predictable 
 
 1. **New data?** Extend `marketdata/sources/` if a new source is needed. Usually not — most rooms reuse existing sources with different tickers.
 2. **New domain concepts?** Add to `core/` if any. Usually not — most rooms are different views of `Stock`, `Quote`, etc.
-3. **New computation?** Add functions to an existing `analysis/*.py` or create a new module (e.g., `analysis/event_studies.py`, `analysis/macro.py`).
+3. **New computation?** Add functions to an existing `analysis/*.py` or create a new module.
 4. **Compose into a snapshot.** Write a workflow in `workflows/` returning a typed dataclass.
 5. **Render.** Write a screen in `cockpit/screens/`. Add a key binding. Render the snapshot.
 
-The discipline: a UI screen never calls analysis functions directly; it always goes through a workflow. The workflow is the always-present middleman. This feels like an extra step when a screen is simple but pays off the third time you reuse a workflow from a different UI context.
+The discipline: a UI screen never calls analysis functions directly; it always goes through a workflow. The workflow is the always-present middleman.
 
 ### Adding a new data source
 
 1. Subclass `MarketDataSource` in `marketdata/sources/`.
 2. Implement `name`, `get_historical_ohlcv`, `get_live_quote`, `supports_interval`, `is_available`.
-3. Register in `DataService.__init__()` (or in a future plugin registry).
+3. Register in `DataService.__init__()`.
 4. Add to `cockpit.toml` documentation as a valid `preferred_source` value.
 
 ### Adding a new strategy
@@ -415,14 +496,19 @@ The discipline: a UI screen never calls analysis functions directly; it always g
 
 ### Adding a new theme
 
-1. Add a dict entry to `THEMES` in `cockpit/themes.py` matching the existing shape.
-2. Done. It appears in the `t` cycle automatically.
+1. Add a dict entry to `THEMES_CONFIG` in `cockpit/themes.py` matching the existing shape (all required color keys including `gradient_positive`, `gradient_negative`, `gradient_neutral`).
+2. Done. It appears in the `T` cycle automatically via `THEME_NAMES`.
 
 ### Adding a new keyboard binding
 
 1. Add to `BINDINGS` in the relevant Textual app or screen.
-2. Add the entry to the help screen so users discover it.
+2. Add the entry to the help screen (`cockpit/screens/help.py`) so users discover it.
 3. Update `CommandFooter` if it's a global binding.
+
+### Adding screener metrics
+
+1. Add computation to `_compute_row()` in `analysis/screener.py`.
+2. Add the column name to the `METRIC_COLUMNS` list in `scripts/scan.py` for `--list-metrics`.
 
 ---
 
@@ -440,6 +526,28 @@ These are patterns that look reasonable but violate the architecture. If a sessi
 
 ---
 
+## Cockpit workflow pattern (canonical)
+
+All home-screen panels and deep-dive screens follow this template:
+
+```
+workflow function (pure data, no Textual, no asyncio)
+    → HomeScreen/Screen reactive variable
+    → @work(exclusive=True, group="group_name", thread=True) worker
+       calls workflow, then call_from_thread(_set_var)
+    → watch_<var>() reactive handler
+    → panel widget .update_snapshot() or .snapshot = new
+    → independent set_interval() timer for polling cadence
+```
+
+Rules:
+- Workflows have no Textual imports and no asyncio
+- Each panel has its own polling timer and exclusive worker group
+- Timers run independently — one slow fetch doesn't block other panels
+- Screens and widgets never import from `marketdata/` directly
+
+---
+
 ## Performance notes
 
 For context on what's fast enough:
@@ -448,6 +556,8 @@ For context on what's fast enough:
 - Schwab/yfinance API calls: 100-500 ms each (network bound)
 - Correlation matrix (10 tickers, 252 days): ~5 ms
 - Textual screen redraw: 5-20 ms
-- Auto-refresh polling interval: 30 seconds default
+- Auto-refresh polling interval: 30s (pulse/watchlist), 5 min (sectors/correlations), 60s (deep-dive screens)
 
 The system is **network-bound and human-bound**, not CPU-bound. Optimization energy should go into UI ergonomics and data quality, not performance.
+
+One known exception: `yfinance.Ticker(ticker).info` in the ticker drill-down workflow for `longName` is a separate network call adding ~500 ms to the initial load. This is acceptable (blocked in a worker thread).

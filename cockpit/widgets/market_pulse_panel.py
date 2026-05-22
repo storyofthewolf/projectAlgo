@@ -15,15 +15,11 @@ from cockpit.format import (
     fmt_change,
     fmt_yield_change,
     fmt_pct,
-    make_sparkline_percentile,
 )
 from cockpit.widgets.price_cell import PriceCell
 from cockpit.widgets.pct_cell import PctCell
 
 _ET = ZoneInfo("America/New_York")
-
-# Sparkline width per cell (inner cell = ~20 chars; spark gets the right portion)
-_SPARK_W = 10
 
 # Format-type → price display function
 _PRICE_FMTS = {
@@ -38,9 +34,9 @@ class PulseCell(Widget):
 
     Layout (2 inner rows inside a bordered widget with label as title):
       Row 1:  PriceCell (price)       |  Static (absolute change, colored)
-      Row 2:  PctCell (change %)      |  Static (sparkline, dim)
+      Row 2:  PctCell (change %)
 
-    For yield format: row 2 shows sparkline only (no % value).
+    For yield format: row 2 is blank (no % value).
     """
 
     DEFAULT_CSS = """
@@ -71,11 +67,6 @@ class PulseCell(Widget):
     PulseCell .pc-pct {
         width: 1fr;
     }
-    PulseCell .pc-spark {
-        width: 11;
-        color: $text-dim;
-        text-align: right;
-    }
     PulseCell.pc-error {
         color: $text-dim;
     }
@@ -95,7 +86,6 @@ class PulseCell(Widget):
             yield Static("", classes="pc-change")
         with Horizontal(classes="pc-row"):
             yield PctCell(classes="pc-pct")
-            yield Static("", classes="pc-spark")
 
     def update_from_ticker(self, ticker) -> None:
         """Update cell from a PulseTicker data object. Called on event loop."""
@@ -133,20 +123,12 @@ class PulseCell(Widget):
         else:
             pct_cell.update("")
 
-        # --- Sparkline ---
-        spark_widget = self.query_one(".pc-spark", Static)
-        if ticker.sparkline_values:
-            spark_widget.update(make_sparkline_percentile(ticker.sparkline_values, _SPARK_W))
-        else:
-            spark_widget.update("")
-
     def _show_error(self) -> None:
         self.add_class("pc-error")
         em = "—"
         self.query_one(PriceCell).update(em)
         self.query_one(".pc-change", Static).update(em)
         self.query_one(PctCell).update("")
-        self.query_one(".pc-spark", Static).update("")
 
 
 class MarketPulsePanel(Widget):

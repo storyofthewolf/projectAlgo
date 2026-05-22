@@ -14,6 +14,7 @@ _HELP_TEXT = """\
     R              REFRESH DATA + RELOAD CONFIG
     ?              SHOW THIS HELP
     T              CYCLE THEME
+    /              FIND TICKER (drill-down)
     ESC            BACK TO PREVIOUS SCREEN
     TAB / SHIFT+TAB   FOCUS NEXT / PREVIOUS PANEL
 
@@ -41,8 +42,17 @@ _HELP_TEXT = """\
     R              REFRESH DATA
     ESC            BACK TO HOME
 
+  TICKER DRILL-DOWN SCREEN (/ → enters, Esc → exits)
+    R              REFRESH (full re-fetch)
+    /              FIND DIFFERENT TICKER
+    J / ↓          SCROLL OHLC DOWN
+    K / ↑          SCROLL OHLC UP
+    T              CYCLE THEME
+    ?              THIS SCREEN
+    ESC            BACK TO PREVIOUS SCREEN
+
   RESERVED (future sessions)
-    A=ACCOUNT  /=FIND TICKER
+    A=ACCOUNT
 
 """
 

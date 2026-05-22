@@ -62,6 +62,15 @@ cross_asset = ["SPY", "QQQ", "IWM", "TLT", "GLD", "^VIX", "DX-Y.NYB", "CL=F"]
 sectors = ["XLK", "XLF", "XLV", "XLY", "XLC", "XLI", "XLP", "XLE", "XLU", "XLRE", "XLB"]
 mega_cap = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
 
+[ticker_detail]
+history_display_days = 30          # OHLC rows shown in the table
+history_lookback_days = 252        # bars fetched for SMA-200 computation (~1 trading year)
+quote_refresh_seconds = 30
+sma_windows = [20, 50, 200]
+rsi_window = 14
+rsi_oversold = 30                  # below this → "oversold" regime label
+rsi_overbought = 70                # above this → "overbought" regime label
+
 [sectors]
 lookback_days = 20
 comparison_ticker = "SPY"

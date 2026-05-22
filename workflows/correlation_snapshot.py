@@ -34,7 +34,7 @@ class RankedPair:
     correlation: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class CorrelationSnapshot:
     """Typed result of build_correlation_snapshot.
 

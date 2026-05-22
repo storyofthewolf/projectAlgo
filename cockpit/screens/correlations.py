@@ -24,7 +24,7 @@ _VALID_METHODS = ("pearson", "spearman", "kendall")
 _COMMANDS = [
     ("ESC", "BACK"),
     ("M", "METHOD"),
-    ("[/]", "LOOKBACK"),
+    ("[ ]", "LOOKBACK"),
     ("P", "PRESET"),
     ("R", "REFRESH"),
     ("T", "THEME"),

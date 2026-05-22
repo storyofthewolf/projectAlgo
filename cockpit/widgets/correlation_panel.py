@@ -12,6 +12,8 @@ from cockpit.themes import THEMES_CONFIG
 
 _EM = "—"
 _CELL_FG = "#f0e0c0"  # cream: readable on all gradient backgrounds
+_COL_W = 7      # width per matrix column
+_LABEL_W = 6    # row-label column width (corner blank = _LABEL_W + 1 separator space)
 
 
 class CorrelationPanel(Widget):
@@ -49,17 +51,20 @@ class CorrelationPanel(Widget):
         n = len(tickers)
 
         lines = []
+        corner_w = _LABEL_W + 1  # row label + the separator space after it
 
         # Header row: ticker labels, right-aligned, upper cols only (skip first)
-        header = f"[{text_dim}]{'':7}" + "".join(f"{t:>7}" for t in tickers[1:]) + "[/]"
+        header = f"[{text_dim}]{'':{corner_w}}" + "".join(
+            f"{t[:_COL_W - 1]:>{_COL_W}}" for t in tickers[1:]
+        ) + "[/]"
         lines.append(header)
 
         for i, row_t in enumerate(tickers):
-            row = f"[{text_dim}]{row_t:<6}[/] "
+            row = f"[{text_dim}]{row_t[:_LABEL_W]:<{_LABEL_W}}[/] "
             for j, col_t in enumerate(tickers):
                 if j > i:
                     # Upper triangle: blank
-                    row += f"{'':7}"
+                    row += f"{'':{_COL_W}}"
                 else:
                     val = matrix.loc[row_t, col_t]
                     formatted = f"{val:>6.2f}"

@@ -41,7 +41,7 @@ UI / Views (cockpit TUI, Dash deep-dives, CLI scripts)
      ↓
 Workflows (orchestration: composes data + analysis into snapshots)
      ↓
-Analysis / Strategies / Options (stateless computation)
+Analysis / Strategies (stateless computation)
      ↓
 Domain Models (Stock, Quote, Transaction — passive containers)
      ↓
@@ -61,121 +61,117 @@ A multi-session build, each session bounded to fit comfortably in one Claude Cod
 **Built:**
 - `marketdata/` package with `DataService` and `MarketDataSource` ABC
 - `YFinanceSource` and `SchwabSource` (Schwab compiles but is deferred end-to-end)
-- `LocalCache` for CSV cache (same filename format as before)
+- `LocalCache` for CSV cache
 - `core/security.py` (passive `Stock` dataclass), `core/quote.py`, `core/transaction.py`
 - `config/settings.py` + `cockpit.toml` for app-wide configuration
 - All existing scripts updated to new architecture
-- `data_manager/`, `broker/market_data.py`, `core/financial_objects.py` deleted
-
-**Verified:** 13 of 13 non-deferred acceptance criteria pass. Schwab end-to-end deferred until OAuth setup.
-
-**Side findings:**
-- Pre-existing Python 3.9 union-type bug in `analysis/technical_analysis.py` (later removed in Session 2)
-- Pre-existing silently-broken `calculate_indicator()` in `plot_static.py` (fixed)
 
 ### Session 2 — Cockpit skeleton + home screen layout — **✅ DONE**
 
 **Built:**
 - `cockpit/` package: Textual app, home screen, help screen
 - Five-panel home layout: account placeholder, market pulse, watchlist, sector heatmap, correlation matrix
-- Two themes: `claude-warm` (default) and `blue-orange` (colorblind-friendly), cycled with `t`
+- Two themes: `claude-warm` (default) and `blue-orange` (colorblind-friendly), cycled with `T`
 - Bloomberg-density × Claude-warm-palette aesthetic
 - Reusable widgets: `Sparkline`, `PriceCell`, `PctCell`, `PanelFrame`, `ClockHeader`, `CommandFooter`
-- Mock data with flash-on-update animation triggered by `r`
-- Numeric formatting helpers (`cockpit/format.py`) — 2-decimal prices, signed percentages, compact volume, em-dash for missing
+- Mock data with flash-on-update animation triggered by `R`
+- Numeric formatting helpers (`cockpit/format.py`)
 - Help screen via `?`, returns via `Esc`
-- Adaptive layout: 120×30 minimum, 160×50 ideal, friendly resize message below minimum
-
-**Verified:** 19 of 19 acceptance criteria pass.
-
-**Cleanup carried over from Session 1:**
-- `from __future__ import annotations` removed from `technical_analysis.py` (project is now on Python 3.14)
-- `--data-dir` flag removed from `scripts/get_data.py`
-- Unused `data_dir` param removed from `load_aligned_returns()`
-
-**Technical findings:**
-- Textual 8.x theme API differs from the spec; Sonnet adapted using `App.register_theme()` and `get_css_variables()` override
-- CSS variable resolution race resolved by injecting custom variables before stylesheet parse
-- `::after` pseudo-elements unsupported in Textual CSS — used overlay widget for resize warning instead
-
-**Python 3.14 compatibility notes:**
-- `yfinance`, `textual`, `tomllib` (stdlib): work fine
-- `pandas-ta`: no 3.14 wheel yet; not actually used in codebase, safe to remove from `requirements.txt` in a future cleanup
-- `schwab-py`: no 3.14 wheel yet; relevant for when Schwab wiring happens — re-check at that time, or consider using `httpx` directly
 
 ### Session 3 — Watchlist real-data wiring — **✅ DONE**
 
 **Built:**
 - `watchlists.yaml` at project root with multi-watchlist support
-- `cockpit/watchlists.py` — YAML loader and validator
-- `workflows/watchlist_snapshot.py` — first concrete Workflow layer code
-- Watchlist panel wired to live yfinance quotes via `DataService`
-- Auto-refresh polling (configurable via `cockpit.toml`)
-- Hot-reload of `watchlists.yaml` on `r`
-- Multi-watchlist cycling on `w`
+- `cockpit/watchlists/` package (YAML provider, Schwab provider stub, registry)
+- `workflows/watchlist_snapshot.py` — first concrete workflow layer
+- Watchlist panel wired to live yfinance quotes
+- Auto-refresh polling; hot-reload on `R`; multi-watchlist cycling on `W`
 
-**Pattern established:** workflow returns typed snapshot → reactive on HomeScreen → independent `@work` worker on its own `set_interval` timer → pure-renderer panel widget. This is the load-bearing template for Sessions 4-7.
+**Pattern established:** workflow → HomeScreen reactive → `@work` worker → `set_interval` timer → pure-renderer panel widget. This is the load-bearing template for all subsequent panels.
 
 ### Session 4 — Market pulse real-data wiring — **✅ DONE**
 
 **Built:**
-- `workflows/market_pulse_snapshot.py` — `PulseSnapshot` and `PulseTicker` data carriers, `build_pulse_snapshot()` function
-- `cockpit/widgets/market_pulse_panel.py` — `MarketPulsePanel` + `PulseCell` with 4×2 grid layout
-- `[pulse]` section in `cockpit.toml` with 8 configurable tickers (SPY, QQQ, IWM, VIX, 10Y, DXY, CL, GC)
-- Three display format types: `price` (with $), `index` (no $), `yield` (% with 3 decimals)
+- `workflows/market_pulse_snapshot.py` — `PulseSnapshot`, `PulseTicker`, `build_pulse_snapshot()`
+- `cockpit/widgets/market_pulse_panel.py` — 4×2 grid with three display formats (price/index/yield)
+- `[pulse]` section in `cockpit.toml` with 8 configurable tickers
 - 30-day sparklines from cached historical data; quotes polled live every 30s
-- Independent polling cadence from watchlist; both timers run separately
 
-**Side findings:**
-- First-flash bug in `PriceCell`/`PctCell` — fixed (was flashing every widget green on first load regardless of actual direction)
-- Special yfinance symbols (`^VIX`, `^TNX`, `DX-Y.NYB`, `CL=F`, `GC=F`) all work via `fast_info` without modification
-- Pattern proves out: two independent panels now use the same workflow→reactive→worker→renderer template
+### Session 5 — Sector heatmap (home panel) — **✅ DONE**
 
-**Verified:** 21 of 21 acceptance criteria pass.
-
-### Session 5 — Sector heatmap (home panel only) — **✅ DONE**
-
-**Goal:** Wire the sector heatmap panel to real data using the same pattern proven in Sessions 3 and 4, plus introduce continuous-gradient color machinery.
-
-**Scope:**
-- `workflows/sector_snapshot.py` — `SectorSnapshot`, `SectorCell`, `build_sector_snapshot()`
-- `cockpit/widgets/sector_panel.py` — `SectorPanel` (3×4 grid) + `SectorCell` widget
-- `analysis/market_analysis.py` — new `calculate_relative_strength()` function
-- `cockpit/format.py` — new `relative_strength_to_color()` for continuous-gradient interpolation
-- `cockpit/themes.py` — add `gradient_positive`, `gradient_negative`, `gradient_neutral` to both themes
-- `[sectors]` section in `cockpit.toml` with `lookback_days`, `comparison_ticker`, `intensity_max_pct`, `refresh_interval_seconds`
-- 11 SPDR sector ETFs (XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB) + SPY as reference cell
-- Relative strength vs SPY over configurable lookback window (default 20 days)
-- Cells render with continuous-gradient backgrounds (linear RGB interpolation), sparklines showing RS path
-- Sectors poll at slower cadence (default 5 minutes) — independent timer
-- No flash on update for sector cells (gradient *is* the visual)
-
-**Out of scope (deferred to Session 6):**
-- `s` key binding
-- Sector deep-dive screen
-- Multi-timeframe view (1D/1W/1M/3M/YTD)
-- Sortable sectors
-
-**Out of scope (other sessions):**
-- Correlation panel real data (Session 7)
-- Account panel
-- Drill-down for individual tickers
+**Built:**
+- `workflows/sector_snapshot.py` — 11 SPDR ETF RS vs SPY
+- `cockpit/widgets/sector_panel.py` — single-row strip with continuous-gradient backgrounds
+- `analysis/market_analysis.py` extended with `calculate_relative_strength()`
+- `cockpit/format.py` extended with `relative_strength_to_color()` (linear RGB interpolation)
+- Three-color gradient per theme (`gradient_positive`, `gradient_negative`, `gradient_neutral`)
+- 5-min polling cadence; sparklines showing RS path
 
 ### Session 6 — Sector deep-dive screen — **✅ DONE**
 
-Press `s` → full-screen sector view. Multi-timeframe RS table (5D/1M/3M/YTD), sortable columns, per-sector sparklines. First non-home screen with real data.
+**Built:**
+- `workflows/multi_timeframe_sector_snapshot.py` — `MultiTimeframeSectorSnapshot`, `SectorRow`, `TimeframeRS`
+- `cockpit/screens/sectors.py` — `SectorDeepDiveScreen`; `S` key enters, `Esc` exits
+- `cockpit/widgets/sector_table.py` — Rich-markup table; column focus, sort arrows, gradient cells
+- `[sector_deep_dive]` section in `cockpit.toml` with configurable timeframes (5D/1M/3M/YTD)
+- SPY pinned at top row; 60s polling
 
 ### Session 7 — Correlation panel real data + deep-dive — **✅ DONE**
 
-Home screen correlation panel wired to real data (gradient-colored matrix, lower triangle). Full correlation deep-dive on `c`: adjustable lookback (`[`/`]`), method (`m`: Pearson/Spearman/Kendall), ticker preset (`p`: cross_asset/sectors/mega_cap). Ranked pair list on right side. `_refresh_mock_panels` deleted — home screen fully live. Dash/Plotly interactive heatmap remains as a CLI tool (`scripts/correlations.py --plot`); integration into cockpit as subprocess deferred until after Session 8 and Schwab wiring.
+**Built:**
+- `workflows/correlation_snapshot.py` — `CorrelationSnapshot`, `RankedPair`, `build_correlation_snapshot()`
+- `cockpit/widgets/correlation_panel.py` — home screen lower-triangle + diagonal matrix, gradient cells
+- `cockpit/widgets/correlation_table.py` — deep-dive full N×N matrix, Rich-markup rendering
+- `cockpit/widgets/ranked_pair_list.py` — deep-dive right panel, pairs ranked high→low, text-color gradient
+- `cockpit/screens/correlations.py` — `CorrelationDeepDiveScreen`; `C` enters, `Esc` exits
+- `[correlations]` and `[correlation_deep_dive]` sections in `cockpit.toml`
+- `M` cycles method (Pearson/Spearman/Kendall); `[`/`]` adjusts lookback; `P` cycles preset
+- `_refresh_mock_panels` deleted — home screen now fully live
 
-### Session 8 — Ticker drill-down + polish (planned)
+### Session 8 — Ticker drill-down + screener CLI — **✅ DONE**
 
-Press `/` then type ticker → drill-down screen with key stats, recent OHLC, basic indicators. "Open in Dash" key spawns chart subprocess. Aesthetic polish pass across all panels and screens.
+**Built:**
+- `workflows/ticker_detail_snapshot.py` — `TickerDetailSnapshot`, `IndicatorReadout`, `TickerStats`, `build_ticker_detail_snapshot()`, `build_ticker_quote_snapshot()`
+- `cockpit/screens/ticker_finder_modal.py` — `TickerFinderModal`; centered `ModalScreen` with `_is_valid_ticker()` validation
+- `cockpit/screens/ticker_detail.py` — `TickerDetailScreen`; full-screen drill-down with scroll, two workers (full refresh + quote repoll)
+- `cockpit/widgets/ticker_header.py` — three-row header: ticker/name, price/change, day/52w range
+- `cockpit/widgets/ohlc_table.py` — Rich-markup OHLC table, newest-first, scroll-offset aware
+- `cockpit/widgets/indicator_panel.py` — SMA readouts with vs-price %, RSI + regime label, color-coded
+- `cockpit/widgets/price_chart.py` — in-terminal Plotext close-price + SMA overlays; `P` launches `view_stock.py` Dash app as detached subprocess on port 8050
+- `analysis/screener.py` — `scan_universe(tickers, ...)` returns `ScanResult(metrics, failed)`; per-ticker failure tolerance; 13 metric columns including `rs_spy_1m`
+- `scripts/scan.py` — cross-sectional scan CLI: universe resolution (index txt > watchlist > `-t`), pandas-style `-q` filter, `--rank`, `--columns`, `--limit`, `--list-metrics`
+- `universes/sp500.txt` — S&P 500 constituent list, yfinance format
+- `[ticker_detail]` section in `cockpit.toml`
+- `config/settings.py` extended with `TickerDetailConfig` and `_parse_ticker_detail()`
 
-### Session 9 — Schwab integration end-to-end (timing flexible)
+**30 of 30 automated ACs pass.**
 
-When the owner completes Schwab OAuth and `schwab-py` (or alternative) works on Python 3.14, validate the Schwab path end-to-end using the verification checklist Sonnet provided in `session-1-debrief.md`. May not need its own session — could be a config-flip plus a smoke-test pass.
+**Technical findings:**
+- `yfinance.Ticker(ticker).info` called directly in the workflow for `longName` (documented leak; adding to `MarketDataSource` ABC was disproportionate for a cosmetic field)
+- Pop-then-push logic in `CockpitApp.action_open_ticker_finder()` + `TickerDetailScreen.action_find_ticker()` ensures `Esc` always returns to home regardless of how many times `/` was pressed
+- `sma_vs_price_pct` recomputed on 30s quote repoll without touching history or indicators
+- `day_high`/`day_low` use most recent daily bar as proxy (live intraday range requires Schwab intraday)
+- Plotext chart (`price_chart.py`) is coarse by design; `P` spawns the full Dash interactive chart
+
+### Session 9 — Polish pass (planned)
+
+Aesthetic improvements across all panels and screens, now that the monitoring tier is feature-complete.
+
+**Scope (tentative):**
+- Immediate theme recolor for gradient cells (currently updates on next refresh, not on `T`)
+- `CommandFooter` audit — consistent key labeling across all screens
+- `pandas-ta` removal from `requirements.txt`
+- Any layout tweaks identified during Sessions 5-8 interactive review
+- Per-screen theme assignment (infrastructure ready; activate if desired)
+
+### Session 10 — Schwab integration end-to-end (timing flexible)
+
+When the owner completes Schwab OAuth and `schwab-py` (or alternative) works on Python 3.14:
+- Validate the Schwab path end-to-end using the verification checklist in `notes/session-1-debrief.md`
+- Account panel: replace placeholder with live balances + positions
+- Live intraday high/low for the ticker drill-down header (current proxy is last daily bar)
+- Flip `preferred_source = "schwab"` in `cockpit.toml`
+- May not need its own full session — could be a config-flip plus a smoke-test pass
 
 ### Future rooms (post-monitoring tier, conceptual)
 
@@ -184,9 +180,10 @@ Built when the monitoring tier is mature and the owner wants more:
 - Volatility regime room
 - Macro regime room
 - Earnings calendar room
-- Backtesting integration into cockpit
+- Backtesting integration into cockpit (deep-dive from a signal in the screener into a backtest)
 - Strategy development tools
 - "Reading list" room (news/research filtered to watchlist tickers)
+- Dash/Plotly interactive heatmap from the cockpit (`scripts/correlations.py --plot` is CLI-only today)
 
 Eventually possibly: a *separate* repository for live trading that consumes signals from this one, with a hard airlock between read-only analysis and order placement.
 
@@ -224,17 +221,25 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 
 ## Status snapshot
 
-**Current state:** Sessions 1-7 complete. All five home-screen panels are wired to live data. `_refresh_mock_panels` is deleted — the home screen is fully live. Two deep-dive screens exist (`s` for sectors, `c` for correlations). Ready for Session 8 (ticker drill-down + polish).
+**Current state:** Sessions 1-8 complete. The cockpit is **feature-complete for market monitoring**.
+
+- All five home-screen panels are wired to live data
+- Two deep-dive screens: sectors (`S`) and correlations (`C`)
+- Ticker drill-down (`/`) with quote, OHLC table, SMA/RSI indicators, in-terminal Plotext chart, and `P`-key Dash launch
+- Cross-sectional screener CLI (`scripts/scan.py`) with S&P 500 universe support
+- `_refresh_mock_panels` is deleted — home screen fully live
 
 **Working features:**
 - Existing CLI scripts (`get_data`, `run_backtest`, `correlations`, `plot_static`, `view_stock`, `view_backtest`) — all via `DataService`
 - Cockpit TUI launches, navigates, themes cycle
-- Watchlist panel: live quotes, configurable via `watchlists.yaml`, multi-list cycling on `w`, hot-reload on `r`
-- Market pulse panel: 8 configurable tickers, three display formats (price/index/yield), 30-day sparklines, 30s polling
+- Market pulse panel: 8 configurable tickers, three display formats, sparklines, 30s polling
+- Watchlist panel: live quotes, configurable via `watchlists.yaml`, multi-list cycling on `W`, hot-reload on `R`
 - Sector heatmap: 11 SPDR ETFs + SPY RS vs SPY, gradient-colored cells, 5-min polling
-- Sector deep-dive (`s`): multi-timeframe RS table (5D/1M/3M/YTD), sortable columns, sparklines, 60s polling
+- Sector deep-dive (`S`): multi-timeframe RS table (5D/1M/3M/YTD), sortable columns, sparklines, 60s polling
 - Correlation panel: gradient-colored lower-triangle matrix, 5-min polling
-- Correlation deep-dive (`c`): full N×N matrix + ranked pair list; `m` cycles method, `[`/`]` adjusts lookback, `p` cycles preset, 60s polling
+- Correlation deep-dive (`C`): full N×N matrix + ranked pair list; `M` cycles method, `[`/`]` adjusts lookback, `P` cycles preset, 60s polling
+- Ticker drill-down (`/`): quote header, scrollable OHLC table, SMA/RSI indicator panel, Plotext price chart, `P` spawns Dash
+- Screener CLI: `python -m scripts.scan <universe> -q "..." --rank ...`; S&P 500 and watchlist universes; 13 metric columns
 - yfinance data source fully functional including special symbols (`^VIX`, `^TNX`, `DX-Y.NYB`, `CL=F`, `GC=F`)
 - Schwab data source compiles but is unauthenticated (deferred)
 
@@ -242,9 +247,11 @@ The goal is for Sonnet to execute without re-deriving architectural decisions. D
 - Schwab OAuth setup (owner will do when ready)
 - `schwab-py` on Python 3.14 (may need workaround when relevant)
 - `pandas-ta` removal from `requirements.txt` (trivial cleanup)
-- Per-room theme assignment (infrastructure ready, not used yet)
 - Account panel still placeholder — waits on Schwab session
-- Dash/Plotly interactive heatmap (`visualization/plot_correlation.py`) remains CLI-only; cockpit subprocess integration deferred until after Session 8 + Schwab wiring
-- Immediate theme recolor on sector/correlation cells (deferred — updates on next refresh)
+- Immediate theme recolor on sector/correlation/indicator gradient cells (updates on next refresh)
+- `CommandFooter` audit for consistent key labeling across screens
+- Dash/Plotly interactive heatmap (`visualization/plot_correlation.py`) remains CLI-only
+- Live intraday day range in ticker drill-down header (proxy uses last daily bar; live range needs Schwab)
+- Dash subprocess not killed when cockpit exits
 
-**Architecture stability:** Sessions 5-7 added 5 new workflows, 6 new widgets, 2 new screens, and 2 new config dataclasses — all additive. The workflow→reactive→worker→renderer pattern is proven across 5 panels. Session 8 (drill-down) adds a new screen type (search + detail); Session 9 (Schwab) is a config + data-path validation exercise.
+**Architecture stability:** The workflow→reactive→worker→renderer pattern is proven across 5 home panels + 2 deep-dive screens + 1 drill-down screen. Session 9 (polish) is additive refinement. Session 10 (Schwab) is a config + data-path validation exercise.

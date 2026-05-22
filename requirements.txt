@@ -9,3 +9,4 @@ schwab-py
 python-dotenv
 tomli>=2.0
 textual>=0.80
+textual-plotext>=1.0

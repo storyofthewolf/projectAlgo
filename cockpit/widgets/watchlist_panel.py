@@ -13,18 +13,16 @@ _ET = ZoneInfo("America/New_York")
 
 from cockpit.format import (
     fmt_price, fmt_pct, fmt_change, fmt_volume,
-    make_sparkline_percentile,
 )
 from cockpit.widgets.price_cell import PriceCell
 from cockpit.widgets.pct_cell import PctCell
 
 # Column widths (characters) — must sum to fit in panel
 _W_TICKER = 6
-_W_PRICE  = 10
-_W_CHG    = 9
-_W_PCT    = 9
-_W_SPARK  = 12
-_W_VOL    = 8
+_W_PRICE  = 12
+_W_CHG    = 11
+_W_PCT    = 11
+_W_VOL    = 12
 
 
 def _col_header() -> str:
@@ -33,7 +31,6 @@ def _col_header() -> str:
         f" {'PRICE':>{_W_PRICE}}"
         f" {'CHG':>{_W_CHG}}"
         f" {'CHG%':>{_W_PCT}}"
-        f" {'SPARK':<{_W_SPARK}}"
         f" {'VOL':>{_W_VOL}}"
     )
 
@@ -47,31 +44,55 @@ class WatchlistRow(Horizontal):
         width: 1fr;
     }
     .wl-ticker  { width: 7;  color: $text-primary; }
-    .wl-price   { width: 11; text-align: right; }
-    .wl-chg     { width: 10; color: $text-primary; text-align: right; }
-    .wl-pct     { width: 10; text-align: right; }
-    .wl-spark   { width: 13; color: $text-primary; }
-    .wl-vol     { width: 9;  color: $text-dim; text-align: right; }
+    .wl-price   { width: 13; text-align: right; }
+    .wl-chg     { width: 12; color: $text-primary; text-align: right; }
+    .wl-pct     { width: 12; text-align: right; }
+    .wl-vol     { width: 13; color: $text-dim; text-align: right; }
     """
 
     def __init__(self, ticker: str, **kwargs):
         super().__init__(**kwargs)
         self.ticker_symbol = ticker
+        # Pending initial data — set before first compose, applied in on_mount
+        self._pending: dict | None = None
 
     def compose(self) -> ComposeResult:
         yield Static(f" {self.ticker_symbol:<{_W_TICKER}}", classes="wl-ticker")
         yield PriceCell(classes="wl-price")
         yield Static("", classes="wl-chg")
         yield PctCell(classes="wl-pct")
-        yield Static("", classes="wl-spark")
         yield Static("", classes="wl-vol")
+
+    def on_mount(self) -> None:
+        # Apply any data that arrived before children were in the DOM
+        if self._pending is not None:
+            self._apply(**self._pending)
+            self._pending = None
 
     def update_data(
         self,
         price: float,
         change: Optional[float],
         change_pct: Optional[float],
-        sparkline_closes: tuple[float, ...],
+        volume: Optional[int],
+    ) -> None:
+        # Guard: children may not be in DOM yet if called right after mount()
+        try:
+            self.query_one(PriceCell)
+        except Exception:
+            self._pending = dict(
+                price=price, change=change, change_pct=change_pct,
+                volume=volume,
+            )
+            return
+        self._apply(price=price, change=change, change_pct=change_pct,
+                    volume=volume)
+
+    def _apply(
+        self,
+        price: float,
+        change: Optional[float],
+        change_pct: Optional[float],
         volume: Optional[int],
     ) -> None:
         self.query_one(PriceCell).update_price(price)
@@ -82,8 +103,6 @@ class WatchlistRow(Horizontal):
             pct_cell.update_pct(change_pct * 100)
         else:
             pct_cell.update(f" {'—':>{_W_PCT}}")
-        spark_str = f" {make_sparkline_percentile(list(sparkline_closes), _W_SPARK):<{_W_SPARK}}"
-        self.query_one(".wl-spark", Static).update(spark_str)
         vol_str = f" {fmt_volume(volume):>{_W_VOL}}"
         self.query_one(".wl-vol", Static).update(vol_str)
 
@@ -91,14 +110,13 @@ class WatchlistRow(Horizontal):
         """Render this row as a dimmed error row."""
         em = "—"
         self.add_class("wl-error-row")
-        self.query_one(PriceCell).update(f" {em:>{_W_PRICE}}")
-        self.query_one(".wl-chg", Static).update(f" {em:>{_W_CHG}}")
-        self.query_one(PctCell).update(f" {em:>{_W_PCT}}")
-        # Truncate error message to fit
-        max_msg = _W_SPARK + _W_VOL
-        short = message[:max_msg - 1] if len(message) > max_msg - 1 else message
-        self.query_one(".wl-spark", Static).update(f" [ERR] {short}")
-        self.query_one(".wl-vol", Static).update("")
+        try:
+            self.query_one(PriceCell).update(f" {em:>{_W_PRICE}}")
+            self.query_one(".wl-chg", Static).update(f" {em:>{_W_CHG}}")
+            self.query_one(PctCell).update(f" {em:>{_W_PCT}}")
+            self.query_one(".wl-vol", Static).update(f" {em:>{_W_VOL}}")
+        except Exception:
+            pass
 
 
 class WatchlistErrorRow(Horizontal):
@@ -119,7 +137,7 @@ class WatchlistErrorRow(Horizontal):
 
     def compose(self) -> ComposeResult:
         em = "—"
-        max_msg = _W_SPARK + _W_VOL + 2
+        max_msg = _W_VOL + 2
         short = self._message[:max_msg - 1] if len(self._message) > max_msg - 1 else self._message
         text = (
             f" ⚠ {self.ticker_symbol:<{_W_TICKER - 2}}"
@@ -196,7 +214,7 @@ class WatchlistPanel(Widget):
 
     def compose(self) -> ComposeResult:
         yield Static(_col_header(), id="wl-col-header")
-        yield Static(" " + "─" * 68, id="wl-sep")
+        yield Static(" " + "─" * 57, id="wl-sep")
         yield Static("  Loading…", id="wl-status")
         yield _WatchlistScroll(id="wl-scroll")
 
@@ -232,7 +250,6 @@ class WatchlistPanel(Widget):
                     price=row_data.quote.price,
                     change=row_data.quote.change,
                     change_pct=row_data.quote.change_pct,
-                    sparkline_closes=row_data.sparkline_closes,
                     volume=row_data.last_volume,
                 )
             else:
@@ -246,7 +263,6 @@ class WatchlistPanel(Widget):
                     price=row_data.quote.price,
                     change=row_data.quote.change,
                     change_pct=row_data.quote.change_pct,
-                    sparkline_closes=row_data.sparkline_closes,
                     volume=row_data.last_volume,
                 )
 
@@ -264,6 +280,10 @@ class WatchlistPanel(Widget):
                 self._rows[ticker] = err_row
 
         self._current_tickers = new_tickers
+        # Force a layout refresh so dynamically-mounted rows become visible.
+        # scroll.mount() is async; without this the parent height: auto panel
+        # doesn't reflow until the next user interaction.
+        self.call_after_refresh(self.refresh)
 
     def action_scroll_down_row(self) -> None:
         self.query_one(_WatchlistScroll).scroll_down()

@@ -12,6 +12,43 @@ _VALID_CORR_METHODS = ("pearson", "spearman", "kendall")
 
 
 @dataclass(frozen=True)
+class TickerDetailConfig:
+    history_display_days: int
+    history_lookback_days: int
+    quote_refresh_seconds: int
+    sma_windows: tuple
+    rsi_window: int
+    rsi_oversold: float
+    rsi_overbought: float
+
+
+_DEFAULT_TICKER_DETAIL_CONFIG = TickerDetailConfig(
+    history_display_days=30,
+    history_lookback_days=252,
+    quote_refresh_seconds=30,
+    sma_windows=(20, 50, 200),
+    rsi_window=14,
+    rsi_oversold=30.0,
+    rsi_overbought=70.0,
+)
+
+
+def _parse_ticker_detail(raw: dict) -> TickerDetailConfig:
+    """Parse and validate the [ticker_detail] TOML table."""
+    sma_raw = raw.get("sma_windows", [20, 50, 200])
+    sma_windows = tuple(int(w) for w in sma_raw)
+    return TickerDetailConfig(
+        history_display_days=int(raw.get("history_display_days", 30)),
+        history_lookback_days=int(raw.get("history_lookback_days", 252)),
+        quote_refresh_seconds=int(raw.get("quote_refresh_seconds", 30)),
+        sma_windows=sma_windows,
+        rsi_window=int(raw.get("rsi_window", 14)),
+        rsi_oversold=float(raw.get("rsi_oversold", 30.0)),
+        rsi_overbought=float(raw.get("rsi_overbought", 70.0)),
+    )
+
+
+@dataclass(frozen=True)
 class CorrelationConfig:
     """Home-screen correlation panel config."""
     tickers: tuple[str, ...]
@@ -274,6 +311,7 @@ class Settings:
     sector_deep_dive_config: SectorDeepDiveConfig
     correlation_config: CorrelationConfig
     correlation_deep_dive_config: CorrelationDeepDiveConfig
+    ticker_detail_config: TickerDetailConfig
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "Settings":
@@ -324,6 +362,12 @@ class Settings:
         else:
             correlation_deep_dive_config = _parse_correlation_deep_dive(corr_dd_raw)
 
+        ticker_detail_raw = data.get('ticker_detail', None)
+        if ticker_detail_raw is None:
+            ticker_detail_config = _DEFAULT_TICKER_DETAIL_CONFIG
+        else:
+            ticker_detail_config = _parse_ticker_detail(ticker_detail_raw)
+
         return cls(
             preferred_source=data['data']['preferred_source'],
             data_dir=project_root / data['data']['data_dir'],
@@ -336,4 +380,5 @@ class Settings:
             sector_deep_dive_config=sector_deep_dive_config,
             correlation_config=correlation_config,
             correlation_deep_dive_config=correlation_deep_dive_config,
+            ticker_detail_config=ticker_detail_config,
         )
