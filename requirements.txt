@@ -1,12 +1,7 @@
 pandas>=2.0
 numpy
 yfinance
-mplfinance
-dash
-plotly
-pandas-ta
 schwab-py
 python-dotenv
 tomli>=2.0
 textual>=0.80
-textual-plotext>=1.0

@@ -30,8 +30,9 @@ class HomeScreen(Screen):
     """Main home screen — all panels wired to real data."""
 
     BINDINGS = [
-        Binding("s", "open_sector_deep_dive",      "Sectors",      show=True),
-        Binding("c", "open_correlation_deep_dive",  "Correlations", show=True),
+        Binding("s",      "open_sector_deep_dive",     "Sectors",      show=True),
+        Binding("c",      "open_correlation_deep_dive", "Correlations", show=True),
+        Binding("escape", "quit",                       "",             show=False),
     ]
 
     # Watchlist state

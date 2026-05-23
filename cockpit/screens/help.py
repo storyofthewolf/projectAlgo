@@ -23,19 +23,13 @@ _HELP_TEXT = """\
     C              CORRELATIONS DEEP-DIVE (matrix + ranked pairs)
     W              CYCLE WATCHLIST
 
-  WATCHLIST PANEL (when focused)
-    J / DOWN       SCROLL DOWN
-    K / UP         SCROLL UP
-    G              JUMP TO TOP
-    SHIFT+G        JUMP TO BOTTOM
-
-  SECTOR DEEP-DIVE SCREEN (s → enters, Esc → exits)
+  SECTOR DEEP-DIVE SCREEN (S → enters, Esc → exits)
     ← →            MOVE COLUMN FOCUS
-    ENTER          SORT BY FOCUSED COLUMN (toggle asc/desc if already sorted)
+    ENTER          SORT BY FOCUSED COLUMN (toggle asc/desc)
     R              REFRESH DATA
     ESC            BACK TO HOME
 
-  CORRELATION DEEP-DIVE SCREEN (c → enters, Esc → exits)
+  CORRELATION DEEP-DIVE SCREEN (C → enters, Esc → exits)
     M              CYCLE METHOD (Pearson → Spearman → Kendall)
     [ / ]          DECREASE / INCREASE LOOKBACK WINDOW
     P              CYCLE TICKER PRESET
@@ -43,16 +37,11 @@ _HELP_TEXT = """\
     ESC            BACK TO HOME
 
   TICKER DRILL-DOWN SCREEN (/ → enters, Esc → exits)
-    R              REFRESH (full re-fetch)
+    R              REFRESH DATA
     /              FIND DIFFERENT TICKER
-    J / ↓          SCROLL OHLC DOWN
-    K / ↑          SCROLL OHLC UP
     T              CYCLE THEME
     ?              THIS SCREEN
     ESC            BACK TO PREVIOUS SCREEN
-
-  RESERVED (future sessions)
-    A=ACCOUNT
 
 """
 

@@ -371,50 +371,22 @@ TickerDetailScreen {
     layout: vertical;
 }
 
-TickerDetailScreen #ticker-header {
-    height: 6;
-    border: round $border;
-    border-title-color: $primary;
-    border-title-style: bold;
-    padding: 0 1;
-}
-
-TickerDetailScreen #price-chart {
-    height: 1fr;
-    min-height: 12;
-    border: round $border;
-    border-title-color: $primary;
-    border-title-style: bold;
-    padding: 0 1;
-}
-
-TickerDetailScreen #detail-body {
-    height: 14;
-}
-
-TickerDetailScreen #ohlc-table {
-    width: 70%;
-    border: round $border;
-    border-title-color: $primary;
-    border-title-style: bold;
-    padding: 0 1;
-    overflow-y: auto;
-}
-
-TickerDetailScreen #indicator-panel {
-    width: 30%;
-    border: round $border;
-    border-title-color: $primary;
-    border-title-style: bold;
-    padding: 0 1;
-    overflow-y: auto;
-}
-
 TickerDetailScreen #detail-footer {
     height: 1;
     background: $surface;
     color: $text-dim;
     dock: bottom;
+}
+
+TickerMetricsPanel {
+    height: 1fr;
+    width: 1fr;
+}
+
+TickerMetricsPanel Static {
+    height: 1fr;
+    color: $text-primary;
+    padding: 0 1;
 }
 
 /* ── Account panel placeholder ───────────────────────────── */

@@ -26,7 +26,7 @@ If live trading is ever added, it will be a *separate repository* that imports f
 
 Everything that wants market data goes through `DataService`. The service decides which source to use, handles caching, and abstracts away the differences between yfinance, Schwab, and any future source.
 
-Adding a new source means adding one implementation of `MarketDataSource` and registering it. Nothing else changes. Strategies, the cockpit, analysis — all consumers — care about *data*, not where it came from.
+Adding a new source means adding one implementation of `MarketDataSource` and registering it. Nothing else changes. The cockpit, analysis, and scripts all care about *data*, not where it came from.
 
 ### 4. Domain models are passive
 
@@ -36,25 +36,25 @@ FORTRAN parallel: derived types hold state; subroutines act on them. You wouldn'
 
 ### 5. Computation is stateless
 
-Analysis functions (`analysis/`), strategy logic (`strategies/`), options pricing (`options/`, future) are stateless: they take inputs, return outputs, no side effects. This makes them composable, testable, and reusable across different consumers (cockpit, scripts, future Dash apps).
+Analysis functions (`analysis/`) are stateless: they take inputs, return outputs, no side effects. This makes them composable, testable, and reusable across different consumers (cockpit, scripts, future browser views).
 
 ### 6. Workflows orchestrate; UI renders
 
 A **workflow** is a user-meaningful task that composes data fetching plus analysis into a typed result (a "snapshot"). The UI consumes snapshots and renders them. The UI never calls analysis functions directly; it never knows about data sources.
 
-Workflows return data structures, not pixels. A `SectorSnapshot` is fields and arrays, not a rendered heatmap. This is what lets the same workflow be consumed by the cockpit TUI, a Dash deep-dive, or a CLI command.
+Workflows return data structures, not pixels. A `SectorSnapshot` is fields and arrays, not a rendered heatmap. This is what lets the same workflow be consumed by the cockpit TUI, a CLI command, or any future view.
 
 FORTRAN parallel: workflows are the experiment driver scripts (messy glue that loads forcings, runs physics in order, checkpoints output). Analysis modules are clean numerical kernels.
 
 ### 7. Text-file configuration over UI menus
 
-`cockpit.toml` for app settings. `watchlists.yaml` for watchlists. `universes/*.txt` for index constituent lists. All hand-editable in vim. The owner prefers typing to clicking.
+`cockpit.toml` for app settings. `watchlists.yaml` for watchlists. All hand-editable in vim. The owner prefers typing to clicking.
 
 There is no "settings UI" inside the cockpit. To change behavior, edit the file and restart (or press `R` for hot-reload where applicable).
 
-### 8. Terminal-first, with browser for deep dives
+### 8. Terminal-first
 
-The primary UI is the Textual TUI. Browser-based Dash apps are reserved for *exploratory deep-dives* where mouse interaction adds value (zooming a multi-year candlestick, hovering correlation cells in a 15×15 heatmap). The cockpit launches Dash deep-dives as subprocesses; they communicate by the cockpit passing arguments on launch, not shared memory.
+The cockpit is the primary and sole UI. Browser-based deep-dives (Dash/Plotly) are a possibility for the future but are not a current architectural feature. No subprocess-launched Dash servers currently exist in the workflow.
 
 ### 9. Information density over whitespace
 
@@ -95,7 +95,7 @@ Rationale: flow-state development requires fast iteration. Python's edit-and-rer
 2. If preferred source doesn't support the interval → fall back
 3. If preferred source is unavailable (e.g., expired token) → fall back with warning log
 
-**Cache logic:** `{TICKER}_{interval}.csv` canonical filename. `get()` serves any sub-window the stored file covers (with a few-day grace for non-trading days); `put()` merges and widens. Legacy dated files are inert. Overlapping/repeat requests hit the cache.
+**Cache logic:** `{TICKER}_{interval}.csv` canonical filename. `get()` serves any sub-window the stored file covers; `put()` merges and widens. Legacy dated files are inert.
 
 **Canonical DataFrame shape:** DatetimeIndex; columns `['Open', 'High', 'Low', 'Close', 'Volume']` in that order; float64 numeric except Volume which is int64.
 
@@ -106,9 +106,8 @@ Rationale: flow-state development requires fast iteration. Python's edit-and-rer
 **Responsibility:** Passive data containers that define the vocabulary of the system. No I/O, no computation, no behavior beyond simple property queries.
 
 **Key types:**
-- `Stock` (`core/security.py`) — ticker + optional `historical_data` DataFrame + metadata dict
+- `Stock` (`core/security.py`) — ticker + optional `historical_data` DataFrame
 - `Quote` (`core/quote.py`) — frozen dataclass: ticker, price, timestamp, optional bid/ask/volume/previous_close, computed `change` and `change_pct` properties
-- `Transaction` (`core/transaction.py`) — BUY/SELL records with slippage-adjusted price, shares, cost basis, realized P&L; produced by `Backtester`
 
 Future additions: `Option`, `OptionChain`, `Position`, `Portfolio`.
 
@@ -120,27 +119,9 @@ Future additions: `Option`, `OptionChain`, `Position`, `Portfolio`.
 
 **Current modules:**
 - `technical_analysis.py` — `calculate_sma`, `calculate_rsi`
-- `performance_metrics.py` — Sharpe, drawdown, win rate, profit factor
 - `market_analysis.py` — `load_aligned_returns`, `calculate_relative_strength`, `calculate_correlation_matrix`, `summarize_correlations`
-- `screener.py` — `scan_universe(tickers, ...)` → `ScanResult(metrics, failed)`; per-ticker failure tolerance; 13 metric columns (`close`, `sma20/50/200`, `pct_sma20/50/200`, `rsi`, `rsi_regime`, `ret_5d/1m/3m/ytd`, `volume`, `avg_vol`, `vol_ratio`, `rs_spy_1m`)
 
-**Conventions:** functions take pandas Series/DataFrames, return same. No state. No side effects. Same function callable from cockpit, scripts, Dash apps.
-
-### Strategies
-
-**Package:** `strategies/`
-
-**Responsibility:** Signal generation for backtesting. Subclasses of `BaseStrategy` implement `calculate_indicator()` and `generate_signals()`.
-
-Currently has `SMACrossoverStrategy`. Architecture supports adding more freely.
-
-### Backtesting
-
-**Package:** `backtesting/`
-
-**Responsibility:** Event-driven backtest engine. FIFO position tracking, slippage application, equity curve generation, trade log.
-
-Currently long-only, one-position-at-a-time. More sophisticated portfolio backtesting is a future enhancement.
+**Conventions:** functions take pandas Series/DataFrames, return same. No state. No side effects.
 
 ### Broker
 
@@ -158,7 +139,7 @@ Currently long-only, one-position-at-a-time. More sophisticated portfolio backte
 
 **Responsibility:** Orchestration. Compose data fetching + analysis into typed snapshots that the UI consumes.
 
-**Pattern:** each workflow defines a snapshot dataclass and exposes a `build_<name>_snapshot(config, data_service=None)` function. `data_service` defaults to `get_data_service()` so HomeScreen never imports the data layer directly. Per-cell failure tolerance: one bad ticker fails locally, panel still renders.
+**Pattern:** each workflow defines a snapshot dataclass and exposes a `build_<name>(config, data_service=None)` function. `data_service` defaults to `get_data_service()` so screens never import the data layer directly. Per-cell failure tolerance: one bad ticker fails locally, panel still renders.
 
 **Existing workflows:**
 
@@ -169,17 +150,9 @@ Currently long-only, one-position-at-a-time. More sophisticated portfolio backte
 | `sector_snapshot.py` | `SectorSnapshot`, `SectorCell` | 11 SPDR ETF RS vs SPY, gradient cells |
 | `multi_timeframe_sector_snapshot.py` | `MultiTimeframeSectorSnapshot`, `SectorRow`, `TimeframeRS` | RS across configurable timeframes for sector deep-dive |
 | `correlation_snapshot.py` | `CorrelationSnapshot`, `RankedPair` | Pairwise correlation matrix + ranked pairs |
-| `ticker_detail_snapshot.py` | `TickerDetailSnapshot`, `IndicatorReadout`, `TickerStats` | Full snapshot for ticker drill-down: quote + OHLC + SMAs + RSI + stats |
+| `ticker_metrics_snapshot.py` | `TickerMetrics` | Scalar metrics for ticker drill-down: quote + 52W range + SMAs + RSI + RS vs SPY |
 
-Workflows are the **single source of truth** for "how is this computed." If the cockpit, a Dash app, and a CLI command all want a sector snapshot, they all call the same workflow.
-
-### Visualization
-
-**Package:** `visualization/`
-
-**Responsibility:** Static plots (mplfinance) and Dash apps. Pre-cockpit infrastructure that still works — `view_backtest.py` in particular is a useful Dash dashboard for backtest results. `view_stock.py` is launched as a detached subprocess from the ticker drill-down's `P` key.
-
-**Future Dash apps** (spawned from cockpit as subprocesses) will live alongside these or in a dedicated `viz/` package.
+Workflows are the **single source of truth** for "how is this computed." If the cockpit and a CLI command both want a sector snapshot, they call the same workflow.
 
 ### Cockpit
 
@@ -192,7 +165,6 @@ Workflows are the **single source of truth** for "how is this computed." If the 
 - `themes.py` — color palette definitions, theme registration (`THEMES_CONFIG`, `THEMES`, `THEME_NAMES`)
 - `styles.tcss` — Textual CSS using theme variables
 - `format.py` — numeric formatting helpers (`fmt_price`, `fmt_pct`, `fmt_volume`, `fmt_change`, `fmt_arrow`, `fmt_ticker`) plus gradient color helpers (`relative_strength_to_color`, `correlation_to_color`, `_gradient_color`)
-- `mock_data.py` — deprecated, retained as empty placeholder
 - `screens/` — screen modules (see table below)
 - `widgets/` — reusable atoms (see table below)
 - `watchlists/` — `yaml_provider.py`, `schwab_provider.py`, `registry.py`, `base.py`
@@ -225,14 +197,11 @@ Workflows are the **single source of truth** for "how is this computed." If the 
 | `widgets/correlation_panel.py` | `CorrelationPanel` | Home lower-triangle matrix, gradient cells |
 | `widgets/correlation_table.py` | `CorrelationTable` | Deep-dive full N×N matrix |
 | `widgets/ranked_pair_list.py` | `RankedPairList` | Deep-dive pairs ranked high→low, text-color gradient |
-| `widgets/ticker_header.py` | `TickerHeader` | Three-row header: ticker/name, price/change, day/52w range |
-| `widgets/ohlc_table.py` | `OHLCTable` | Scrollable OHLC history, newest-first |
-| `widgets/indicator_panel.py` | `IndicatorPanel` | SMA readouts with vs-price %, RSI + regime label |
-| `widgets/price_chart.py` | `PriceChart` | Plotext in-terminal close-price + SMA overlays |
+| `widgets/ticker_metrics_panel.py` | `TickerMetricsPanel` | Drill-down scalar metrics panel: 11 rows, two-column layout |
 
 **Theme system:** dicts in `themes.py` define palettes. Active theme from `cockpit.toml`. Two themes currently: `claude-warm` (default, warm orange/cream on near-black) and `blue-orange` (colorblind-friendly). Cycle via `T`. `CockpitApp.get_css_variables()` is overridden to inject custom CSS variables (`$text-dim`, `$positive`, `$negative`, `$border`, `$gradient-positive`, `$gradient-negative`, `$gradient-neutral`, etc.) before every stylesheet parse — required because Textual resolves CSS vars from the default theme during first parse, which doesn't include our custom vars.
 
-Themes also define a three-color gradient (`gradient_positive`, `gradient_negative`, `gradient_neutral`) used by sector, correlation, and indicator widgets for continuous-color magnitude encoding. Interpolated in linear RGB by `cockpit/format.py::_gradient_color()`.
+Themes also define a three-color gradient (`gradient_positive`, `gradient_negative`, `gradient_neutral`) used by sector, correlation, and ticker widgets for continuous-color magnitude encoding. Interpolated in linear RGB by `cockpit/format.py::_gradient_color()`.
 
 **Numeric formatting rules:**
 - Tickers: all-caps
@@ -264,9 +233,7 @@ Themes also define a three-color gradient (`gradient_positive`, `gradient_negati
 | `Enter` | Sort by focused column | sector deep-dive |
 | `M` | Cycle method | correlation deep-dive |
 | `[` / `]` | Decrease / increase lookback | correlation deep-dive |
-| `P` | Cycle preset / open Dash chart | correlation deep-dive / ticker drill-down |
-| `J` / `↓` | Scroll down | ticker drill-down |
-| `K` / `↑` | Scroll up | ticker drill-down |
+| `P` | Cycle preset | correlation deep-dive |
 
 ### Configuration
 
@@ -275,7 +242,6 @@ Themes also define a three-color gradient (`gradient_positive`, `gradient_negati
 **Files:**
 - `cockpit.toml` (at project root) — app-wide settings
 - `watchlists.yaml` (at project root) — watchlist definitions
-- `universes/*.txt` — index constituent lists, one ticker per line
 
 **Module:** `config/settings.py` — `Settings` frozen dataclass with `load()` classmethod. Resolves paths relative to project root. Single source of truth.
 
@@ -283,12 +249,11 @@ Themes also define a three-color gradient (`gradient_positive`, `gradient_negati
 
 | Class | TOML section | Purpose |
 |-------|-------------|---------|
-| `DataConfig` | `[data]` | Cache directory, preferred source |
 | `SectorConfig` | `[sectors]` | Home sector panel: lookback, comparison ticker, intensity |
 | `SectorDeepDiveConfig` | `[sector_deep_dive]` | Timeframe list, sort defaults, refresh cadence |
 | `CorrelationConfig` | `[correlations]` | Home panel: tickers, method, lookback, refresh |
 | `CorrelationDeepDiveConfig` | `[correlation_deep_dive]` | Deep-dive: presets, method, lookback options, refresh |
-| `TickerDetailConfig` | `[ticker_detail]` | Drill-down: SMA windows, RSI config, display rows, refresh |
+| `TickerDetailConfig` | `[ticker_detail]` | Drill-down: SMA windows, RSI config, refresh cadence |
 
 ### Scripts
 
@@ -301,20 +266,17 @@ Themes also define a three-color gradient (`gradient_positive`, `gradient_negati
 | Script | Purpose |
 |--------|---------|
 | `get_data.py` | Fetch and cache OHLCV |
-| `run_backtest.py` | Run a backtest |
-| `correlations.py` | Pairwise correlation matrix CLI + optional Plotly heatmap |
-| `scan.py` | Cross-sectional screener: universe scan with filter/rank |
 | `account.py` | Schwab account summary |
 | `quote.py` | Schwab live quotes |
-| `inspect_pickle.py` | Inspect a saved backtest result |
 | `cockpit.py` | Launch the TUI |
 | `schwab_auth.py` | Schwab OAuth flow |
 | `clean_data.py` | Cache maintenance utility |
-| `run_analysis.py` | Market analysis CLI helper |
+| `run_analysis.py` | Legacy market analysis helper (pre-refactor; references old architecture) |
+| `verify_session9.py` | Post-cleanup import-tree verifier |
 
 ---
 
-## File layout (current state, post-Session-8)
+## File layout (current state, post-Session-9)
 
 ```
 projectAlgo/
@@ -343,8 +305,7 @@ projectAlgo/
 ├── core/                         # domain models
 │   ├── __init__.py
 │   ├── security.py               # Stock
-│   ├── quote.py                  # Quote
-│   └── transaction.py            # Transaction
+│   └── quote.py                  # Quote
 │
 ├── broker/                       # Schwab non-market-data
 │   ├── __init__.py
@@ -358,31 +319,12 @@ projectAlgo/
 │   ├── sector_snapshot.py
 │   ├── multi_timeframe_sector_snapshot.py
 │   ├── correlation_snapshot.py
-│   └── ticker_detail_snapshot.py
+│   └── ticker_metrics_snapshot.py
 │
 ├── analysis/                     # stateless computation
 │   ├── __init__.py
 │   ├── technical_analysis.py
-│   ├── performance_metrics.py
-│   ├── market_analysis.py
-│   └── screener.py               # ScanResult, scan_universe()
-│
-├── strategies/
-│   ├── __init__.py
-│   ├── base_strategy.py
-│   └── sma_crossover.py
-│
-├── backtesting/
-│   ├── __init__.py
-│   └── engine.py
-│
-├── visualization/                # static plots + Dash apps
-│   ├── __init__.py
-│   ├── plot_static.py
-│   ├── view_stock.py             # launched as subprocess by ticker drill-down P key
-│   ├── view_backtest.py
-│   ├── plot_correlation.py       # Plotly heatmap (CLI only)
-│   └── indicator_plot_configs.py
+│   └── market_analysis.py
 │
 ├── cockpit/                      # the TUI
 │   ├── __init__.py
@@ -390,7 +332,6 @@ projectAlgo/
 │   ├── themes.py
 │   ├── styles.tcss
 │   ├── format.py
-│   ├── mock_data.py              # deprecated, retained as placeholder
 │   ├── screens/
 │   │   ├── __init__.py
 │   │   ├── home.py
@@ -414,10 +355,7 @@ projectAlgo/
 │   │   ├── correlation_panel.py
 │   │   ├── correlation_table.py
 │   │   ├── ranked_pair_list.py
-│   │   ├── ticker_header.py
-│   │   ├── ohlc_table.py
-│   │   ├── indicator_panel.py
-│   │   └── price_chart.py
+│   │   └── ticker_metrics_panel.py
 │   └── watchlists/
 │       ├── __init__.py
 │       ├── base.py
@@ -426,37 +364,25 @@ projectAlgo/
 │       └── schwab_provider.py
 │
 ├── scripts/                      # CLI entry points
-│   ├── __init__.py
 │   ├── get_data.py
-│   ├── run_backtest.py
-│   ├── correlations.py
-│   ├── scan.py                   # cross-sectional screener CLI
 │   ├── account.py
 │   ├── quote.py
-│   ├── inspect_pickle.py
 │   ├── cockpit.py
 │   ├── schwab_auth.py
 │   ├── clean_data.py
-│   └── run_analysis.py
-│
-├── universes/                    # index constituent lists
-│   └── sp500.txt
+│   ├── run_analysis.py           # legacy; references pre-refactor architecture
+│   └── verify_session9.py        # import-tree verifier
 │
 ├── specs/                        # design documents
 │   ├── ROADMAP.md
 │   ├── ARCHITECTURE.md           # this file
-│   ├── session-1-spec.md
-│   ├── ...
-│   └── session-8-spec.md
+│   └── session-{1..9}-spec.md   # historical record
 │
 ├── notes/                        # session debriefs
-│   ├── session-1-debrief.md
-│   ├── ...
-│   └── session-8-debrief.md
+│   └── session-{1..9}-debrief.md
 │
 └── data/                         # storage (not code)
-    ├── historical_data/          # cached CSV files
-    └── backtest_results/         # pickled backtest bundles
+    └── historical_data/          # cached CSV files
 ```
 
 ---
@@ -482,18 +408,6 @@ The discipline: a UI screen never calls analysis functions directly; it always g
 3. Register in `DataService.__init__()`.
 4. Add to `cockpit.toml` documentation as a valid `preferred_source` value.
 
-### Adding a new strategy
-
-1. Subclass `BaseStrategy` in `strategies/`.
-2. Implement `calculate_indicator()` (adds columns to `self._data`) and `generate_signals()` (sets `self._data['signal']` to 1/-1/0).
-3. Register in `STRATEGY_REGISTRY` in `scripts/run_backtest.py`.
-
-### Adding a new indicator
-
-1. Add `calculate_<name>(data, window, column='Close')` to `analysis/technical_analysis.py`.
-2. Register in `visualization/indicator_plot_configs.py` for visualization integration.
-3. The backtest dashboard auto-detects RSI-prefixed columns for oscillator panels; others overlay on price.
-
 ### Adding a new theme
 
 1. Add a dict entry to `THEMES_CONFIG` in `cockpit/themes.py` matching the existing shape (all required color keys including `gradient_positive`, `gradient_negative`, `gradient_neutral`).
@@ -505,11 +419,6 @@ The discipline: a UI screen never calls analysis functions directly; it always g
 2. Add the entry to the help screen (`cockpit/screens/help.py`) so users discover it.
 3. Update `CommandFooter` if it's a global binding.
 
-### Adding screener metrics
-
-1. Add computation to `_compute_row()` in `analysis/screener.py`.
-2. Add the column name to the `METRIC_COLUMNS` list in `scripts/scan.py` for `--list-metrics`.
-
 ---
 
 ## Anti-patterns to avoid
@@ -520,7 +429,7 @@ These are patterns that look reasonable but violate the architecture. If a sessi
 - **A workflow returning rendered output (HTML, terminal escape codes).** Workflows return data; UI renders.
 - **A domain model with I/O methods.** `Stock.download_data()` was wrong; the same mistake should not return for `Option`, `Position`, etc.
 - **Configuration scattered through code.** All settings come from `Settings` loaded once at startup.
-- **Source-specific code outside `marketdata/sources/`.** If a strategy or workflow has `if source == 'schwab': ...`, the data layer is leaking.
+- **Source-specific code outside `marketdata/sources/`.** If a workflow has `if source == 'schwab': ...`, the data layer is leaking.
 - **Cockpit code that knows about specific data sources.** Cockpit only sees `DataService` and workflow snapshots.
 - **Polishing things that aren't on the critical path.** The roadmap is the source of truth for what to build next.
 
@@ -536,7 +445,7 @@ workflow function (pure data, no Textual, no asyncio)
     → @work(exclusive=True, group="group_name", thread=True) worker
        calls workflow, then call_from_thread(_set_var)
     → watch_<var>() reactive handler
-    → panel widget .update_snapshot() or .snapshot = new
+    → panel widget .update_snapshot() or .update_metrics()
     → independent set_interval() timer for polling cadence
 ```
 
@@ -556,8 +465,6 @@ For context on what's fast enough:
 - Schwab/yfinance API calls: 100-500 ms each (network bound)
 - Correlation matrix (10 tickers, 252 days): ~5 ms
 - Textual screen redraw: 5-20 ms
-- Auto-refresh polling interval: 30s (pulse/watchlist), 5 min (sectors/correlations), 60s (deep-dive screens)
+- Auto-refresh polling interval: 30s (pulse/watchlist), 5 min (sectors/correlations), 60s (deep-dive screens), 30s (ticker drill-down)
 
 The system is **network-bound and human-bound**, not CPU-bound. Optimization energy should go into UI ergonomics and data quality, not performance.
-
-One known exception: `yfinance.Ticker(ticker).info` in the ticker drill-down workflow for `longName` is a separate network call adding ~500 ms to the initial load. This is acceptable (blocked in a worker thread).

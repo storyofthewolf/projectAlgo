@@ -16,7 +16,19 @@
       "Bash(pip --version)",
       "Bash(conda info *)",
       "Bash(pip install *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(git push *)",
+      "Bash(/usr/local/bin/python3.14 -c \"import textual; print\\(textual.__version__\\)\")",
+      "Read(//usr/local/lib/**)",
+      "Read(//Users/wolfe/Library/**)",
+      "Read(//Users/wolfe/miniforge3/**)",
+      "Read(//private/tmp/**)",
+      "Bash(lsof -nP -iTCP:8052)",
+      "Bash(grep -E '_[0-9]{8}_[0-9]{8}\\\\.csv$')",
+      "Bash(grep -E '^[A-Z^.=-]+_1d\\\\.csv$|^[A-Z^.=-]+_1wk\\\\.csv$|^[A-Z^.=-]+_1mo\\\\.csv$')",
+      "Bash(grep -vE '_[0-9]{8}_[0-9]{8}\\\\.csv$')",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
