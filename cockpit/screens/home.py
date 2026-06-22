@@ -13,8 +13,10 @@ from cockpit.widgets.watchlist_panel import WatchlistPanel
 from cockpit.widgets.market_pulse_panel import MarketPulsePanel
 from cockpit.widgets.sector_panel import SectorPanel
 from cockpit.widgets.correlation_panel import CorrelationPanel
+from cockpit.widgets.account_panel import AccountPanel
 from cockpit.screens.sectors import SectorDeepDiveScreen
 from cockpit.screens.correlations import CorrelationDeepDiveScreen
+from workflows.account_snapshot import AccountSnapshot, build_account_snapshot
 from workflows.watchlist_snapshot import WatchlistSnapshot, build_watchlist_snapshot
 from workflows.market_pulse_snapshot import PulseSnapshot, build_pulse_snapshot
 from workflows.sector_snapshot import SectorSnapshot, build_sector_snapshot
@@ -49,20 +51,15 @@ class HomeScreen(Screen):
     # Correlation state
     correlation_snapshot: reactive[CorrelationSnapshot | None] = reactive(None)
 
+    # Account state
+    account_snapshot: reactive[AccountSnapshot | None] = reactive(None)
+
     def compose(self) -> ComposeResult:
         yield ClockHeader(id="clock-header")
 
         with Horizontal(id="top-row"):
             with PanelFrame("ACCOUNT", id="panel-account"):
-                yield Static(
-                    "\n Schwab not connected.\n\n"
-                    " Run:\n"
-                    "  python -m\n"
-                    "  scripts.schwab_auth\n\n"
-                    " See CLAUDE.md\n"
-                    " for setup.",
-                    id="account-content",
-                )
+                yield AccountPanel(id="account-widget")
             with PanelFrame("MARKET PULSE", id="panel-pulse"):
                 yield MarketPulsePanel(
                     pulse_configs=self.app.settings.pulse_tickers,
@@ -109,6 +106,9 @@ class HomeScreen(Screen):
             self.app.settings.correlation_config.refresh_interval_seconds,
             self.refresh_correlations,
         )
+
+        self.refresh_account()
+        self.set_interval(interval, self.refresh_account)
 
     # ── Watchlist worker ──────────────────────────────────────────────────
 
@@ -209,6 +209,25 @@ class HomeScreen(Screen):
             return
         self.query_one("#corr-panel", CorrelationPanel).update_snapshot(new)
 
+    # ── Account worker ────────────────────────────────────────────────────
+
+    @work(exclusive=True, group="account", thread=True)
+    def refresh_account(self) -> None:
+        snap = build_account_snapshot()
+        self.app.call_from_thread(self._set_account_snapshot, snap)
+
+    def _set_account_snapshot(self, snapshot: AccountSnapshot) -> None:
+        self.account_snapshot = snapshot
+
+    def watch_account_snapshot(
+        self,
+        old: AccountSnapshot | None,
+        new: AccountSnapshot | None,
+    ) -> None:
+        if new is None:
+            return
+        self.query_one("#account-widget", AccountPanel).update_snapshot(new)
+
     # ── Refresh (r key) ───────────────────────────────────────────────────
 
     def action_refresh(self) -> None:
@@ -217,6 +236,7 @@ class HomeScreen(Screen):
         self.refresh_pulse()
         self.refresh_sectors()
         self.refresh_correlations()
+        self.refresh_account()
 
     def refresh_mock(self) -> None:
         self.action_refresh()
